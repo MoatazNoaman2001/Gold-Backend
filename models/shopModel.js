@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const shopSchema = new mongoose.Schema(
   {
-    owner: {},
-    name: {},
-    logoUrl: {},
+    owner: {type:mongoose.Schema.ObjectId, ref:"User",required:true},
+    name: string,
+    logoUrl: string,
     description: String,
     city: string,
     area: string,
