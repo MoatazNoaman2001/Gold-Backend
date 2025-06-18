@@ -1,31 +1,30 @@
-import { catchAsync } from '../utils/wrapperFunction.js';
-import User  from '../models/userModel.js';
+import { catchAsync } from '../utlites/wrapperFunction.js'; 
+import User from '../models/userModel.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+export const register = catchAsync(async (req, res) => {
+  const { name, email, telephone, password, role } = req.body;
 
-export const register =catchAsync(async (req, res) => {
-    
-    const { name, email,telephone ,password, role } = req.body;
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return res.status(400).json({ message: 'User already exists' });
+  }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-    const user = new User({
-      name,
-      email,
-      telephone,
-      password,
-      role
-    });
+  const user = new User({
+    name,
+    email,
+    telephone,
+    password,
+    role
+  });
 
-    await user.save();
+  await user.save();
 
-    res.status(201).json({ message: 'User created successfully' });
-  
+  res.status(201).json({ message: 'User created successfully' });
 });
-export const login = catchAsync(async (req, res, next) => {
+
+export const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -39,15 +38,15 @@ export const login = catchAsync(async (req, res, next) => {
   if (!user) {
     return res.status(401).json({
       status: "fail",
-      message: "Invalid email "
+      message: "Invalid email"
     });
   }
-  console.log(user.password);
-   const isValid =user.comparePassword(password);
+
+  const isValid = await user.comparePassword(password); 
   if (!isValid) {
     return res.status(401).json({
       status: "fail",
-      message: "Invalid  password"
+      message: "Invalid password"
     });
   }
 
@@ -57,12 +56,12 @@ export const login = catchAsync(async (req, res, next) => {
       email: user.email,
       role: user.role
     },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET, 
     { expiresIn: "1h" }
   );
 
   res.status(200).json({
     status: "success",
-    token: token
+    token
   });
 });
