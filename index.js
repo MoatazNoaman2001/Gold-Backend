@@ -1,6 +1,8 @@
 import express from'express';
 import mongoose from'mongoose';
 import authRoutes from './routes/authRoute.js'
+import shopRoutes from './routes/shopRoutes.js'
+
 import dotenv from 'dotenv';
 
 
@@ -12,6 +14,7 @@ app.get("/", (req, res) => {
   res.send("Hello, Node.js Project!");
 });
 app.use('/auth',authRoutes);
+app.use('/shop',shopRoutes);
 
 
 mongoose.connect(process.env.MONGO_URI)
