@@ -14,6 +14,8 @@ app.get("/", (req, res) => {
 app.use('/auth',authRoutes);
 
 
-mongoose.connect(process.env.MONGO_URL)
-.then(() => app.listen(process.env.PORT, () => console.log('Server running on port 3000')))
+mongoose.connect(process.env.MONGO_URI)
+.then(() => app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`)))
 .catch(err => console.log(err));
+console.log("MONGO_URI:", process.env.MONGO_URI);
+console.log("PORT:", process.env.PORT);
