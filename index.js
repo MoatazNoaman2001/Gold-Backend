@@ -1,8 +1,9 @@
-import express from'express';
-import mongoose from'mongoose';
-import authRoutes from './routes/authRoute.js'
-import shopRoutes from './routes/shopRoutes.js'
-
+import express from "express";
+import mongoose from "mongoose";
+import authRoutes from "./routes/authRoute.js";
+import shopRoutes from "./routes/shopRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import userRoutes from './routes/userRoute.js'
 import dotenv from 'dotenv';
 
 
@@ -13,8 +14,10 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello, Node.js Project!");
 });
-app.use('/auth',authRoutes);
-app.use('/shop',shopRoutes);
+app.use("/auth", authRoutes);
+app.use("/shop", shopRoutes);
+app.use("/product", productRoutes);
+app.use('/user',userRoutes);
 
 
 mongoose

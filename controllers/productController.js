@@ -1,4 +1,4 @@
-import { catchAsync } from "../utlites/wrapperFunction.js";
+import { catchAsync } from "../utils/wrapperFunction.js";
 import Product from "../models/productModel.js";
 
 export const createProduct = catchAsync(async (req, res) => {

@@ -5,6 +5,6 @@ import { protect } from "../middlewares/protect.js";
 const router = express.Router();
 
 router.post("/create", protect, createShop);
-router.post("/", protect, getAllShops);
+router.get("/", protect, getAllShops);
 
 export default router;
