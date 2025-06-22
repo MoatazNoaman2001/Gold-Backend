@@ -34,7 +34,7 @@ export const updateUser = catchAsync(async (req, res) => {
         { name, email, phone },
         { new: true, runValidators: true }
     ).select("-password");
-
+    console.log(name, email, phone);
     if (!updatedUser) {
         return res.status(404).json({
             status: "fail",

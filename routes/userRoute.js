@@ -4,7 +4,7 @@ import {  updateUser, deleteUser, resetPassword, forgotPassword,resetPasswordWit
 
 const router = express.Router();
 
-router.patch('/',protect, updateUser);
+router.put('/',protect, updateUser);
 router.delete('/',protect, deleteUser);
 router.post('/reset_password',protect, resetPassword);
 router.post('/forgot-password',forgotPassword);
