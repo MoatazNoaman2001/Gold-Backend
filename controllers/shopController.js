@@ -20,3 +20,17 @@ export const getAllShops = catchAsync(async (req, res) => {
     data: shops,
   });
 });
+export const getMyShop = catchAsync(async (req, res) => {
+  const myShops = await Shop.find({ owner: req.user._id });
+  if (!myShops || myShops.length === 0) {
+    return res.status(404).json({
+      status: "fail",
+      message: "No shops found for this user",
+    });
+  }
+  res.status(200).json({
+    status: "success",
+    result: myShops.length,
+    data: myShops,
+  });
+});
