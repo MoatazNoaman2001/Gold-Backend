@@ -20,17 +20,51 @@ export const getAllShops = catchAsync(async (req, res) => {
     data: shops,
   });
 });
-export const getMyShop = catchAsync(async (req, res) => {
-  const myShops = await Shop.find({ owner: req.user._id });
-  if (!myShops || myShops.length === 0) {
+
+export const getShop = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const shop = await Shop.findById(id).populate("owner", "name email");
+  if (!shop) {
     return res.status(404).json({
       status: "fail",
-      message: "No shops found for this user",
+      message: "Shop not found",
     });
   }
   res.status(200).json({
     status: "success",
-    result: myShops.length,
-    data: myShops,
+    data: shop,
   });
 });
+
+export const deleteShop = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const shop = await Shop.findByIdAndDelete(id);
+  if (!shop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+  res.status(204).json({
+    status: "success",
+    message: "Shop deleted successfully",
+  });
+});
+export const updateShop = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const updatedShop = await Shop.findByIdAndUpdate(
+    id,
+    req.body,
+    { new: true, runValidators: true }
+  ).populate("owner", "name email");
+  if (!updatedShop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+  res.status(200).json({
+    status: "success",
+    data: updatedShop,
+  });
+});   
