@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
         ]
     },
 
-    telephone: {
+    phone: {
         type: String,
         required: [true, 'Telephone number is required'],
         trim: true,
