@@ -23,3 +23,14 @@ export const addAvailableTime = catchAsync(async (req, res) => {
   });
   res.status(201).json({ status: "success", data: newTime });
 });
+
+export const getAvailableTimesForShop = catchAsync(async (req, res) => {
+  const { shopId } = req.params;
+  console.log(shopId);
+  const times = await BookingTime.find({
+    shop: shopId,
+    isBooking: false,
+    date: { $gte: new Date() },
+  });
+  res.status(201).json({ status: "success", data: times });
+});
