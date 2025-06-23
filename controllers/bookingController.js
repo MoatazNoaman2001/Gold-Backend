@@ -34,3 +34,20 @@ export const getAvailableTimesForShop = catchAsync(async (req, res) => {
   });
   res.status(201).json({ status: "success", data: times });
 });
+
+export const bookTime = catchAsync(async (req, res) => {
+  const { timeId } = req.body;
+  const userId = req.user._id;
+
+  const time = await BookingTime.findById(timeId);
+  if(!time){
+    return res.status(400).json({message: "Time not found"});
+  }
+  if(time.isBooking){
+    return res.status(400).json({message: "Time already booked"});
+  }
+  time.isBooking = true;
+  time.user = userId;
+  await time.save();
+  res.status(201).json({ status: "success", data: time });
+});
