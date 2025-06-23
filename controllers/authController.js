@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 export const register = catchAsync(async (req, res) => {
-  const { name, email, telephone, password, role } = req.body;
+  const { name, email, phone, password, role } = req.body;
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -14,7 +14,7 @@ export const register = catchAsync(async (req, res) => {
   const user = new User({
     name,
     email,
-    telephone,
+    phone,
     password,
     role
   });

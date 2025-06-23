@@ -20,7 +20,7 @@ const shopSchema = new mongoose.Schema(
     },
     isApproved: { type: Boolean, default: false },
   },
-  { Timestamp: true }
+  { timestamp: true }
 );
 
 const Shop = mongoose.model("Shop", shopSchema);

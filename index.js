@@ -3,9 +3,9 @@ import mongoose from "mongoose";
 import authRoutes from "./routes/authRoute.js";
 import shopRoutes from "./routes/shopRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
-import userRoutes from './routes/userRoute.js'
-import dotenv from 'dotenv';
-
+import userRoutes from "./routes/userRoute.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
+import dotenv from "dotenv";
 
 dotenv.config();
 const app = express();
@@ -17,8 +17,8 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/shop", shopRoutes);
 app.use("/product", productRoutes);
-app.use('/user',userRoutes);
-
+app.use("/user", userRoutes);
+app.use("/booking", bookingRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
