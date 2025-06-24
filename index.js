@@ -6,7 +6,7 @@ import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import dotenv from "dotenv";
-
+import rateRoutes from "./routes/rateRoutes.js";
 dotenv.config();
 const app = express();
 app.use(express.json());
@@ -19,6 +19,7 @@ app.use("/shop", shopRoutes);
 app.use("/product", productRoutes);
 app.use("/user", userRoutes);
 app.use("/booking", bookingRoutes);
+app.use("/rate", rateRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
