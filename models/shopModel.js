@@ -19,7 +19,12 @@ const shopSchema = new mongoose.Schema(
       default: "Basic",
     },
     isApproved: { type: Boolean, default: false },
+    averageRating: {
+    type: Number,
+    default: 0
   },
+  },
+  
   { timestamp: true }
 );
 
