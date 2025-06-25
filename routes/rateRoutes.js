@@ -1,12 +1,12 @@
 import express from 'express';
 import { createRate, getAllRates, getRate, updateRate, deleteRate } from '../controllers/rateController.js';
-import { protect } from '../middlewares/protect.js';        
+import { authenticateUser } from '../middlewares/auth.js';
+const router = express.Router();   
 
 
-const router = express.Router();    
-router.post('/:shopId', protect, createRate);
-router.get('/', protect, getAllRates);
-router.get('/:id', protect, getRate);
-router.put('/:id', protect, updateRate);
-router.delete('/:id', protect, deleteRate); 
+router.post('/:shopId', authenticateUser, createRate);
+router.get('/', authenticateUser, getAllRates);
+router.get('/:id', authenticateUser, getRate);
+router.put('/:id', authenticateUser, updateRate);
+router.delete('/:id', authenticateUser, deleteRate); 
 export default router;

@@ -4,11 +4,12 @@ import {
   getAvailableTimesForShop,
   bookTime,
 } from "../controllers/bookingController.js";
-import { protect } from "../middlewares/protect.js";
+ import { authenticateUser } from "../middlewares/auth.js";  
+
 const router = express.Router();
 
-router.post("/", protect, addAvailableTime);
-router.get("/:shopId", protect, getAvailableTimesForShop);
-router.post("/book", protect, bookTime);
+router.post("/", authenticateUser, addAvailableTime);
+router.get("/:shopId", authenticateUser, getAvailableTimesForShop);
+router.post("/book", authenticateUser, bookTime);
 
 export default router;
