@@ -84,7 +84,10 @@ export const resetPassword = catchAsync(async (req, res) => {
     user.password = newPassword;
     await user.save();
 
-    sendToken(user, 200, res);
+    res.status(200).json({
+        status: "success",
+        message: "Password updated successfully",
+    });
 });
 export const forgotPassword = catchAsync(async (req, res) => {
     const { email } = req.body;
