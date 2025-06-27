@@ -3,15 +3,15 @@ import nodemailer from 'nodemailer';
 
 const sendEmail = async ({ to, subject, text }) => {
   const transporter = nodemailer.createTransport({
-    service: 'yahoo', // or 'gmail'
+    service: 'gmail', // or 'yahoo'
     auth: {
-      user: process.env.YAHOO_USER,
-      pass: process.env.YAHOO_APP_PASSWORD,
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
 
   await transporter.sendMail({
-    from: process.env.YAHOO_USER,
+    from: process.env.GMAIL_USER,
     to,
     subject,
     text,
