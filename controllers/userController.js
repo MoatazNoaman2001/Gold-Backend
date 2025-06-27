@@ -48,6 +48,23 @@ export const updateUser = catchAsync(async (req, res) => {
     });
 });
 
+export const updateRole = catchAsync(async (req, res) => {
+    const {role, id} = req.body;
+    const user = await userModel.findById(id);
+    if (!user){
+        return res.status(404).json({
+            status: "not found",
+            message: "no user with this id"
+        })
+    }else{
+        user.role = role;
+
+        await userModel.updateOne({_id: id}, {role: role});
+        return res.status(204).send();
+    }
+
+})
+
 export const deleteUser = catchAsync(async (req, res) => {
     const user = await userModel.findByIdAndDelete(req.user._id);
     if (!user) {
@@ -100,7 +117,7 @@ export const forgotPassword = catchAsync(async (req, res) => {
 
         await user.save();
 
-        const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+        const resetUrl = `http://localhost:${process.env.PORT}/reset-password/${resetToken}`;
         const message = `Click to reset your password: ${resetUrl}`;
 
         await sendEmail({

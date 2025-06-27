@@ -65,3 +65,29 @@ export const login = catchAsync(async (req, res) => {
     token
   });
 });
+
+
+
+export const googleAuth = catchAsync(async (req, res) => {
+  const token = jwt.sign(
+    {
+      id: req.user._id,
+      email: req.user.email,
+      role: req.user.role
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  res.status(200).json({
+    status: "success",
+    token
+  });
+});
+
+export const googleAuthFailure = (req, res) => {
+  res.status(401).json({
+    status: "fail",
+    message: "Google authentication failed"
+  });
+};

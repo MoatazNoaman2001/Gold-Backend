@@ -24,7 +24,6 @@ const userSchema = new mongoose.Schema({
 
     phone: {
         type: String,
-        required: [true, 'Telephone number is required'],
         trim: true,
         match: [
             /^[\+]?0(10|11|12|15)\d{8}$/,
@@ -34,7 +33,6 @@ const userSchema = new mongoose.Schema({
 
     role: {
         type: String,
-        required: [true, 'Role is required'],
         enum: {
             values: ['admin', 'seller', 'customer'],
             message: 'Role must be either admin, seller, or customer'
@@ -47,6 +45,15 @@ const userSchema = new mongoose.Schema({
         required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters long'],
         select: false
+    },
+    googleId: {
+        type:String, 
+        unique:true,
+        sparse:true,
+    },
+    isVerified: {
+        type: Boolean,
+        default: false,
     }
 }, {
     timestamps: true,
