@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matching Drag-and-Drop Exercise</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --border-radius: 12px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fb;
+            color: var(--dark);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .instructions {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+
+        .matching-area {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .column {
+            flex: 1;
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .column-title {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: var(--secondary);
+            font-weight: 600;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .draggable-item, .dropzone {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: var(--border-radius);
+            cursor: move;
+            transition: var(--transition);
+        }
+
+        .draggable-item {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .draggable-item:hover {
+            background-color: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        .draggable-item.dragging {
+            opacity: 0.5;
+        }
+
+        .dropzone {
+            background-color: var(--light);
+            border: 2px dashed #adb5bd;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .dropzone.highlight {
+            border-color: var(--accent);
+            background-color: rgba(72, 149, 239, 0.1);
+        }
+
+        .dropzone.matched {
+            border-style: solid;
+            border-color: var(--success);
+            background-color: rgba(76, 201, 240, 0.1);
+        }
+
+        .matched-pair {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius);
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        button:hover {
+            background-color: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background-color: #6c757d;
+        }
+
+        .score-display {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .matching-area {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Matching Exercise</h1>
+            <p class="instructions">Drag items from the left column and drop them on their correct matches in the right column.</p>
+        </header>
+
+        <div class="matching-area">
+            <div class="column" id="items-column">
+                <h2 class="column-title">Terms</h2>
+                <div class="draggable-item" draggable="true" data-id="1">Photosynthesis</div>
+                <div class="draggable-item" draggable="true" data-id="2">Mitochondria</div>
+                <div class="draggable-item" draggable="true" data-id="3">Newton's First Law</div>
+                <div class="draggable-item" draggable="true" data-id="4">GDP</div>
+                <div class="draggable-item" draggable="true" data-id="5">Shakespeare</div>
+            </div>
+
+            <div class="column" id="matches-column">
+                <h2 class="column-title">Definitions</h2>
+                <div class="dropzone" data-match-id="1">Process by which plants convert sunlight into energy</div>
+                <div class="dropzone" data-match-id="2">Powerhouse of the cell</div>
+                <div class="dropzone" data-match-id="3">An object in motion stays in motion unless acted upon</div>
+                <div class="dropzone" data-match-id="4">Total monetary value of goods and services produced</div>
+                <div class="dropzone" data-match-id="5">Author of "Romeo and Juliet"</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="check-btn">Check Answers</button>
+            <button id="reset-btn" class="secondary">Reset</button>
+        </div>
+
+        <div class="score-display" id="score-display"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const draggableItems = document.querySelectorAll('.draggable-item');
+            const dropzones = document.querySelectorAll('.dropzone');
+            const checkBtn = document.getElementById('check-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const scoreDisplay = document.getElementById('score-display');
+            
+            let draggedItem = null;
+            let matches = {};
+            let score = 0;
+
+            // Drag start event
+            draggableItems.forEach(item => {
+                item.addEventListener('dragstart', () => {
+                    draggedItem = item;
+                    setTimeout(() => {
+                        item.classList.add('dragging');
+                    }, 0);
+                });
+
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                });
+            });
+
+            // Dropzone events
+            dropzones.forEach(zone => {
+                zone.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    zone.classList.add('highlight');
+                });
+
+                zone.addEventListener('dragleave', () => {
+                    zone.classList.remove('highlight');
+                });
+
+                zone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    zone.classList.remove('highlight');
+                    
+                    if (draggedItem && !zone.querySelector('.draggable-item')) {
+                        const itemId = draggedItem.getAttribute('data-id');
+                        const matchId = zone.getAttribute('data-match-id');
+                        
+                        // Remove from previous match if exists
+                        if (matches[itemId]) {
+                            const prevZone = document.querySelector(`.dropzone[data-match-id="${matches[itemId]}"]`);
+                            if (prevZone) {
+                                prevZone.innerHTML = prevZone.getAttribute('data-original-content') || '';
+                                prevZone.classList.remove('matched');
+                            }
+                        }
+                        
+                        // Store original content
+                        if (!zone.hasAttribute('data-original-content')) {
+                            zone.setAttribute('data-original-content', zone.innerHTML);
+                        }
+                        
+                        // Add to new zone
+                        const itemClone = draggedItem.cloneNode(true);
+                        itemClone.style.cursor = 'default';
+                        zone.innerHTML = '';
+                        zone.appendChild(itemClone);
+                        zone.classList.add('matched');
+                        
+                        // Update matches
+                        matches[itemId] = matchId;
+                    }
+                });
+            });
+
+            // Check answers
+            checkBtn.addEventListener('click', () => {
+                let correct = 0;
+                const total = draggableItems.length;
+                
+                for (const itemId in matches) {
+                    if (itemId === matches[itemId]) {
+                        correct++;
+                    }
+                }
+                
+                score = Math.round((correct / total) * 100);
+                scoreDisplay.textContent = `Score: ${score}% (${correct} out of ${total} correct)`;
+                
+                // Visual feedback
+                dropzones.forEach(zone => {
+                    const item = zone.querySelector('.draggable-item');
+                    if (item) {
+                        const itemId = item.getAttribute('data-id');
+                        const matchId = zone.getAttribute('data-match-id');
+                        
+                        if (itemId === matchId) {
+                            zone.style.borderColor = '#4caf50';
+                        } else {
+                            zone.style.borderColor = '#f44336';
+                        }
+                    }
+                });
+            });
+
+            // Reset exercise
+            resetBtn.addEventListener('click', () => {
+                matches = {};
+                scoreDisplay.textContent = '';
+                
+                // Reset draggable items
+                const itemsColumn = document.getElementById('items-column');
+                draggableItems.forEach(item => {
+                    if (!itemsColumn.contains(item)) {
+                        itemsColumn.appendChild(item);
+                        item.style.cursor = 'move';
+                    }
+                });
+                
+                // Reset dropzones
+                dropzones.forEach(zone => {
+                    const originalContent = zone.getAttribute('data-original-content');
+                    if (originalContent) {
+                        zone.innerHTML = originalContent;
+                    }
+                    zone.classList.remove('matched', 'highlight');
+                    zone.style.borderColor = '';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
