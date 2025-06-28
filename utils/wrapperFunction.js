@@ -3,3 +3,12 @@ export const catchAsync = (fun)=>{
         fun(req,res,next).catch(next)
     }
 }
+
+export const handleMongooseErrors = (err, req, res, next) => {
+  try {
+    const errorObj = JSON.parse(err.message);
+    return res.status(400).json(errorObj);
+  } catch (e) {
+    return next(err);
+  }
+};

@@ -1,40 +1,44 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcrypt';
+import { AppError } from '../controllers/errorController.js';
 
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: [true, 'Name is required'],
+        required: [true, 'Please provide your name'],
         trim: true,
-        minlength: [2, 'Name must be at least 2 characters long'],
+        minlength: [4, 'Name must be at least 4 characters'],
         maxlength: [50, 'Name cannot exceed 50 characters']
     },
 
     email: {
         type: String,
-        required: [true, 'Email is required'],
-        unique: true,
+        required: [true, 'Please provide your email'],
+        unique: [true, 'This email is already registered'],
         lowercase: true,
         trim: true,
-        match: [
-            /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-            'Please enter a valid email address'
-        ]
+        validate: {
+            validator: function(v) {
+                return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(v);
+            },
+            message: 'Please enter a valid email address'
+        }
     },
 
     phone: {
         type: String,
-        required: [true, 'Telephone number is required'],
         trim: true,
-        match: [
-            /^[\+]?0(10|11|12|15)\d{8}$/,
-            'Please enter a valid telephone number (11 digits, starting with 012, 010, 011, or 015)'
-        ]
+        validate: {
+            validator: function(v) {
+                if (!v) return true; // Optional field
+                return /^[\+]?0(10|11|12|15)\d{8}$/.test(v);
+            },
+            message: 'Please enter a valid Egyptian phone number (11 digits, starting with 010, 011, 012, or 015)'
+        }
     },
 
     role: {
         type: String,
-        required: [true, 'Role is required'],
         enum: {
             values: ['admin', 'seller', 'customer'],
             message: 'Role must be either admin, seller, or customer'
@@ -44,19 +48,55 @@ const userSchema = new mongoose.Schema({
 
     password: {
         type: String,
-        required: [true, 'Password is required'],
-        minlength: [6, 'Password must be at least 6 characters long'],
+        required: [true, 'Please provide a password'],
+        minlength: [6, 'Password must be at least 6 characters'],
+        select: false,
+        validate: {
+            validator: function(v) {
+                return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(v);
+            },
+            message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        }
+    },
+
+    googleId: {
+        type: String, 
+        unique: true,
+        sparse: true,
+    },
+
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+
+    refreshToken: {
+        type: String,
         select: false
     }
 }, {
     timestamps: true,
-    collection: 'users'
+    collection: 'users',
+    // Transform the output to remove version and password fields
+    toJSON: {
+        transform: function(doc, ret) {
+            delete ret.__v;
+            delete ret.password;
+            return ret;
+        }
+    },
+    toObject: {
+        transform: function(doc, ret) {
+            delete ret.__v;
+            delete ret.password;
+            return ret;
+        }
+    }
 });
 
-// Index for better query performance
+userSchema.index({ email: 3 }, { unique: true });
 userSchema.index({ role: 1 });
 
-// Pre-save middleware to hash password
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
 
@@ -69,22 +109,36 @@ userSchema.pre('save', async function (next) {
     }
 });
 
-// Instance method to check password
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Static method to find user by email
 userSchema.statics.findByEmail = function (email) {
     return this.findOne({ email: email.toLowerCase() });
 };
 
-// Static method to find users by role
 userSchema.statics.findByRole = function (role) {
     return this.find({ role });
 };
 
-// Create and export the User model
+userSchema.post('save', function(error, doc, next) {
+  if (error.name === 'MongoServerError' && error.code === 11000) {
+    const field = Object.keys(error.keyPattern)[0];
+    next(new AppError(`The ${field} is already registered. Please use a different ${field}.`, 400));
+  } else if (error.name === 'ValidationError') {
+    const errors = {};
+    Object.keys(error.errors).forEach((key) => {
+      errors[key] = error.errors[key].message;
+    });
+    const message = 'Validation failed';
+    const validationError = new AppError(message, 400);
+    validationError.errors = errors;
+    next(validationError);
+  } else {
+    next(error);
+  }
+});
+  
 const User = mongoose.model('User', userSchema);
 
 export default User;
