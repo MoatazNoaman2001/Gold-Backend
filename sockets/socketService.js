@@ -72,45 +72,95 @@ export const initializeChatSocket = (server) => {
 
   io.on("connection", (socket) => {
     const user = socket.request.user;
-    console.log(`Authenticated connection: ${user?.email || 'Anonymous'}`);
+    console.log(`Authenticated connection: ${user?.email}`);
 
     if (user) {
       socket.join(user._id.toString());
       console.log(`User ${user._id} joined their room`);
     }
-
-    socket.on("joinConversation", async ({ conversationId, productId }, callback) => {
+    socket.on("createConversation", async ({ productId, participantId }, callback) => {
       try {
-        let conversation;
-        if (conversationId) {
-          conversation = await Conversation.findById(conversationId)
-            .populate("participants");
-          if (!conversation) {
-            return callback({ status: "error", message: "Conversation not found" });
-          }
-          if (!conversation.participants.some(p => p._id.equals(user._id))) {
-            return callback({ status: "error", message: "Not authorized to join this conversation" });
-          }
-        } else if (productId) {
-          const existingConversation = await Conversation.findOne({
-            product: productId,
-            participants: { $all: [user._id] }
-          });
-          if (existingConversation) {
-            conversation = existingConversation;
-          } else {
-            const seller = await User.findOne({ role: "seller" });
-            if (!seller) {
-              return callback({ status: "error", message: "No seller found for this product" });
-            }
-            conversation = await Conversation.create({
-              participants: [user._id, seller._id],
-              product: productId
-            });
-          }
+        if (!productId || !participantId) {
+          return callback({ status: "error", message: "Product ID and participant ID are required" });
+        }
+
+        const participant = await User.findById(participantId);
+        if (!participant) {
+          return callback({ status: "error", message: "Participant not found" });
+        }
+
+        if (participant._id.equals(user._id)) {
+          return callback({ status: "error", message: "Cannot create conversation with yourself" });
+        }
+
+        const existingConversation = await Conversation.findOne({
+          product: productId,
+          participants: { $all: [user._id, participant._id] }
+        });
+
+        if (existingConversation) {
+          return callback({ status: "success", conversationId: existingConversation._id });
+        }
+
+        const conversation = await Conversation.create({
+          participants: [user._id, participant._id],
+          product: productId
+        });
+
+        socket.join(conversation._id.toString());
+        io.to(participant._id.toString()).emit("newConversation", { conversationId: conversation._id });
+        callback({ status: "success", conversationId: conversation._id });
+      } catch (err) {
+        callback({ status: "error", message: err.message });
+      }
+    });
+
+    socket.on("joinConversation", async ({ conversationId }, callback) => {
+      try {
+        const conversation = await Conversation.findById(conversationId)
+          .populate("participants", "name email")
+          .populate("lastMessage");
+        if (!conversation) {
+          return callback({ status: "error", message: "Conversation not found" });
+        }
+        if (!conversation.participants.some(p => p._id.equals(user._id))) {
+          return callback({ status: "error", message: "Not authorized to joint this conversation" });
         }
         socket.join(conversation._id.toString());
-        callback({ status: "success", conversationId: conversation._id });
+        callback({ status: "success", conversation });
+      } catch (err) {
+        callback({ status: "error", message: err.message });
+      }
+    });
+
+    socket.on("getConversations", async (callback) => {
+      try {
+        const conversations = await Conversation.find({ participants: user._id })
+          .populate("participants", "name email")
+          .populate("lastMessage")
+          .sort({ updatedAt: -1 });
+        callback({ status: "success", conversations });
+      } catch (err) {
+        callback({ status: "error", message: err.message });
+      }
+    });
+
+    socket.on("getMessages", async ({ conversationId, limit = 20, skip = 0 }, callback) => {
+      try {
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation) {
+          return callback({ status: "error", message: "Conversation not found" });
+        }
+        if (!conversation.participants.some(p => p._id.equals(user._id))) {
+          return callback({ status: "error", message: "Not authorized to view messages" });
+        }
+        const messages = await Message.find({ conversation: conversationId })
+          .populate("sender", "name email")
+          .populate("receiver", "name email")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit);
+        callback({ status: "success", messages });
       } catch (err) {
         callback({ status: "error", message: err.message });
       }
@@ -118,7 +168,7 @@ export const initializeChatSocket = (server) => {
 
     socket.on("sendMessage", async ({ conversationId, content, productId }, callback) => {
       try {
-        const conversation = await Conversation.findById(conversationId);
+        let conversation = await Conversation.findById(conversationId);
         if (!conversation) {
           return callback({ status: "error", message: "Conversation not found" });
         }
@@ -130,11 +180,13 @@ export const initializeChatSocket = (server) => {
           sender: user._id,
           receiver: conversation.participants.find(p => !p._id.equals(user._id)),
           content,
-          product: productId || conversation.product
+          product: productId || conversation.product,
+          conversation: conversationId
         });
 
         await Conversation.findByIdAndUpdate(conversationId, {
-          lastMessage: message._id
+          lastMessage: message._id,
+          updatedAt: new Date()
         });
 
         const populatedMessage = await Message.findById(message._id)
@@ -173,7 +225,7 @@ export const initializeChatSocket = (server) => {
     socket.on("disconnect", (reason) => {
       console.log(`Disconnected: ${reason}`);
       if (reason === "ping timeout" || reason === "transport close") {
-        console.log(`Attempting to reconnect for user: ${user?.email || 'Anonymous'}`);
+        console.log(`Attempting to reconnect for user: ${user?.email}`);
       }
     });
 
@@ -182,11 +234,11 @@ export const initializeChatSocket = (server) => {
     });
 
     socket.on("reconnect_attempt", () => {
-      console.log(`Reconnection attempt for user: ${user?.email || 'Anonymous'}`);
+      console.log(`Reconnection attempt for user: ${user?.email}`);
     });
 
     socket.on("reconnect", () => {
-      console.log(`Reconnected: ${user?.email || 'Anonymous'}`);
+      console.log(`Reconnected: ${user?.email}`);
       if (user) {
         socket.join(user._id.toString());
       }
