@@ -12,6 +12,8 @@ import session from'express-session';
 import passport from 'passport';
 import oauth20  from 'passport-google-oauth20';
 import User from "./models/userModel.js";
+import { globalErrorHandler } from "./controllers/errorController.js";
+import { handleMongooseErrors } from "./utils/wrapperFunction.js";
 
 let GoogleAuthStratigy = oauth20.Strategy;
 
@@ -86,6 +88,11 @@ app.use("/product", productRoutes);
 app.use("/user", userRoutes);
 app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
+
+
+
+app.use(globalErrorHandler);
+app.use(handleMongooseErrors);
 
 mongoose
   .connect(process.env.MONGO_URI)
