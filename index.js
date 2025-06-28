@@ -14,6 +14,8 @@ import oauth20  from 'passport-google-oauth20';
 import User from "./models/userModel.js";
 import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
+import { initializeChatSocket } from './sockets/socketService.js';
+import http from 'http';
 
 let GoogleAuthStratigy = oauth20.Strategy;
 
@@ -93,6 +95,13 @@ app.use("/rate", rateRoutes);
 
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);
+
+const server = http.createServer(app);
+initializeChatSocket(server);
+server.listen(process.env.PORT , ()=>{
+  console.log(`server is on`);
+  
+})
 
 mongoose
   .connect(process.env.MONGO_URI)
