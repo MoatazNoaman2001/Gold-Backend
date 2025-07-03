@@ -14,7 +14,8 @@ export const authenticateUser = async (req, res, next) => {
     return res.status(401).json({ message: 'Not authorized, no token' });
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log(`token: ${token}`);
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
     const user = await User.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -22,6 +23,8 @@ export const authenticateUser = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
+    console.log(`error: ${err}`);
+    
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Token expired' });
     }
