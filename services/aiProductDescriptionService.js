@@ -16,7 +16,7 @@ class AIProductDescriptionService {
         messages: [
           {
             role: "system",
-            content: "You are a professional product description writer for e-commerce. Create compelling, SEO-friendly descriptions that highlight key features and benefits. Keep descriptions concise but informative and simple words, typically 100-200 words."
+            content: "You are a professional product description writer for e-commerce. Create compelling, SEO-friendly descriptions that highlight key features and benefits. Keep descriptions concise but informative and simple words, typically 50-100 words."
           },
           {
             role: "user",
@@ -38,33 +38,49 @@ class AIProductDescriptionService {
    * Create prompt for AI based on product data
    */
   createPrompt(productData) {
-    let prompt = `Write a professional product description for:\n\n`;
-    prompt += `Product Name: ${productData.name}\n`;
-    prompt += `Category: ${productData.category}\n`;
-    
+    let prompt = `Write a professional, SEO-friendly product description for a jewelry item with the following details:\n\n`;
+    if (productData.title) {
+      prompt += `Product Name: ${productData.title}\n`;
+    }
+    if (productData.category) {
+      prompt += `Category: ${productData.category}\n`;
+    }
     if (productData.brand) {
       prompt += `Brand: ${productData.brand}\n`;
     }
-    
+    if (productData.karat) {
+      prompt += `Karat: ${productData.karat}\n`;
+    }
+    if (productData.weight) {
+      prompt += `Weight: ${productData.weight} grams\n`;
+    }
+    if (productData.design_type) {
+      prompt += `Design Type: ${productData.design_type}\n`;
+    }
+    if (productData.price) {
+      prompt += `Price: ${productData.price} EGP\n`;
+    }
     if (productData.features && productData.features.length > 0) {
       prompt += `Key Features: ${productData.features.join(', ')}\n`;
     }
-    
     if (productData.targetAudience) {
       prompt += `Target Audience: ${productData.targetAudience}\n`;
     }
-    
     if (productData.basicDescription) {
       prompt += `Basic Description: ${productData.basicDescription}\n`;
     }
-    
+    if (productData.description) {
+      prompt += `Additional Details: ${productData.description}\n`;
+    }
+
     prompt += `\nPlease create a compelling product description that:\n`;
     prompt += `- Highlights key benefits and features\n`;
     prompt += `- Uses persuasive language\n`;
     prompt += `- Is SEO-friendly\n`;
-    prompt += `- Maintains professional tone\n`;
-    prompt += `- Focuses on customer value\n`;
-    
+    prompt += `- Maintains a professional and inviting tone\n`;
+    prompt += `- Focuses on customer value and appeal\n`;
+    prompt += `- Is concise (50-100 words)\n`;
+
     return prompt;
   }
 
