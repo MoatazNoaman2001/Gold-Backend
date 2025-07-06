@@ -14,6 +14,28 @@ export const createProduct = catchAsync(async (req, res) => {
     images_urls,
     shop,
   } = req.body;
+
+  let aiDescription; // Declare here
+
+  try {
+    // Initialize AI service with API key
+    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);              
+    // Generate AI-based product description
+    aiDescription = await aiService.generateDescription({
+      name: title,  
+      category: "Jewelry",
+      features: [description],
+      targetAudience: "General Public",
+      basicDescription: description,
+    });
+  } catch (error) {
+    console.error("Error generating AI description:", error);
+    return res.status(500).json({
+      status: "fail", 
+      message: "Failed to generate AI description",
+    });
+  }
+
   const newProduct = new Product({
     title,
     description: aiDescription, // Use AI-generated description
@@ -39,7 +61,6 @@ export const getAllProducts = catchAsync(async (req, res) => {
   let products;
   const { shopId } = req.query;
 
-  // إذا تم تمرير shopId، أظهر منتجات هذا المتجر فقط
   if (shopId) {
     products = await Product.find({ shop: shopId }).populate(
       "shop",
