@@ -7,25 +7,47 @@ const shopSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Owner ID is required"],
     },
-    name: String,
+    name: {
+      type: String,
+      required: [true, "Shop name is required"],
+    },
     logoUrl: String,
+    image: String, // Shop main image
     description: String,
     city: String,
     area: String,
+    address: String, // Full address
+    phone: String, // Shop phone number
     whatsapp: String,
+    specialties: [String], // Array of specialties like ["خواتم", "قلائد", "أساور"]
+    workingHours: {
+      type: String,
+      default: "9:00 ص - 9:00 م",
+    },
     subscriptionPlan: {
       type: String,
       enum: ["Basic", "Premium", "Gold"],
       default: "Basic",
     },
-    isApproved: { type: Boolean, default: false },
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
     averageRating: {
-    type: Number,
-    default: 0
+      type: Number,
+      default: 0,
+    },
+    rating: {
+      type: Number,
+      default: 0,
+    },
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
   },
-  },
-  
-  { timestamp: true }
+
+  { timestamps: true }
 );
 
 const Shop = mongoose.model("Shop", shopSchema);
