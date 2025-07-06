@@ -1,6 +1,7 @@
 import { catchAsync } from "../utils/wrapperFunction.js";
 import Product from "../models/productModel.js";
 import Favorite from "../models/FavModels.js";
+import AIProductDescriptionService  from "../services/aiProductDescriptionService.js";
 
 export const createProduct = catchAsync(async (req, res) => {
   const {
@@ -13,9 +14,28 @@ export const createProduct = catchAsync(async (req, res) => {
     images_urls,
     shop,
   } = req.body;
+  // Generate AI description
+  let aiDescription = description; // Fallback to original description
+
+  try {
+    console.log('Generating AI description for:', title);
+    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);
+    aiDescription = await aiService.generateDescription({
+      name: title,
+      category: "Jewelry",
+      features: [description],
+      targetAudience: "General Public",
+      basicDescription: description
+    });
+  } catch (error) {
+    console.error('AI error:', error);
+    // Fallback to original description if AI fails
+    aiDescription = description;
+  }
+  
   const newProduct = new Product({
     title,
-    description,
+    description: aiDescription, // Use AI-generated description
     price,
     karat,
     weight,
