@@ -67,9 +67,7 @@ export const getAllProducts = catchAsync(async (req, res) => {
       "name owner isApproved"
     );
   }
-  // إذا كان المستخدم بائع، أظهر منتجات متاجره فقط
   else if (req.user && req.user.role === "seller") {
-    // جلب متاجر البائع أولاً
     const Shop = (await import("../models/shopModel.js")).default;
     const userShops = await Shop.find({ owner: req.user._id });
     const shopIds = userShops.map((shop) => shop._id);
@@ -79,7 +77,6 @@ export const getAllProducts = catchAsync(async (req, res) => {
       "name owner"
     );
   }
-  // للجميع (بما في ذلك الأدمن والعملاء)، أظهر جميع المنتجات
   else {
     products = await Product.find().populate("shop", "name owner isApproved");
   }
@@ -104,7 +101,6 @@ export const getProduct = catchAsync(async (req, res) => {
 export const getProductsByShop = catchAsync(async (req, res) => {
   const { shopId } = req.params;
 
-  // التحقق من وجود المتجر
   const Shop = (await import("../models/shopModel.js")).default;
   const shop = await Shop.findById(shopId);
 
@@ -115,7 +111,6 @@ export const getProductsByShop = catchAsync(async (req, res) => {
     });
   }
 
-  // جلب منتجات المتجر
   const products = await Product.find({ shop: shopId }).populate(
     "shop",
     "name owner isApproved"
@@ -210,4 +205,110 @@ export const removeFromFav = catchAsync(async (req, res) => {
     status: "Removed",
     message: "Product removed from favorites",
   });
+});
+export const generateDescriptionVariations = catchAsync(async (req, res) => {
+  const { productId } = req.params;
+  // Check if productId is provided
+  if (!productId) {
+    return res.status(422).json({
+      status: "fail",
+      message: "Please provide a product ID",
+    });
+  }   
+  // Check if productId is a valid MongoDB ObjectId
+  if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
+    return res.status(422).json({
+      status: "fail",
+      message: "Invalid product ID format",
+    });
+  } 
+  // Check if product exists
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Product not found",
+    });}
+
+  // Validate required fields
+const { 
+        title, 
+        category, 
+        features, 
+        brand, 
+        Design_type, 
+        karat, 
+        weight, 
+        images_urls, 
+        description, 
+        targetAudience, 
+        basicDescription,
+        price
+      } = product;
+  try {
+    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);
+    const descriptions = await aiService.generateVariations(productId, 3);
+
+    res.status(200).json({
+      status: "success",
+      data: descriptions,
+    });
+  } catch (error) {
+    console.error("Error generating description variations:", error);
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to generate descriptions",
+    });
+  }
+});
+
+export const regenerateDescription = catchAsync(async (req, res) => {
+  const { productId } = req.params;
+  // Check if productId is provided
+  if (!productId) {
+    return res.status(422).json({
+      status: "fail",
+      message: "Please provide a product ID",
+    });
+  }   
+  // Check if productId is a valid MongoDB ObjectId
+  if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
+    return res.status(422).json({
+      status: "fail",
+      message: "Invalid product ID format",
+    });
+  } 
+  // Check if product exists
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Product not found",
+    });}
+
+  try {
+    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);
+    const newDescription = await aiService.generateDescription({
+      name: product.title,
+      category: "Jewelry",
+      features: [product.description],
+      targetAudience: "General Public",
+      basicDescription: product.description,
+    });
+
+    // Update the product with the new description
+    product.description = newDescription;
+    await product.save();
+
+    res.status(200).json({
+      status: "success",
+      data: { description: newDescription },
+    });
+  } catch (error) {
+    console.error("Error regenerating description:", error);
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to regenerate description",
+    });
+  }
 });
