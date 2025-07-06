@@ -7,7 +7,18 @@ const bookingTimeSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    isBooking: { type: Boolean, default: false },
+    time: {
+      type: String,
+      required: true, // e.g., "10:00", "14:30"
+    },
+    isBooked: { type: Boolean, default: false },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Who booked this slot
+    notes: { type: String, maxlength: 500 },
+    appointmentType: {
+      type: String,
+      enum: ["consultation", "viewing", "purchase", "repair"],
+      default: "consultation",
+    },
   },
   { timestamps: true }
 );
