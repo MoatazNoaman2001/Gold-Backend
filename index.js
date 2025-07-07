@@ -26,7 +26,7 @@ const app = express();
 // Enable CORS for requests from http://localhost:5174
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow your frontend origin
+    origin: "https://gold-frontend-pi.vercel.app/", // Allow your frontend origin
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })

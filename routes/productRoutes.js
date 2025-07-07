@@ -40,3 +40,4 @@ router.delete( "/:id", authenticateUser, authorizeRoles("seller", "admin"), dele
 router.get("/generateDescriptionVariations/:productId", authenticateUser, generateDescriptionVariations);
 router.get("/regenerate-description/:productId", authenticateUser, regenerateDescription);
 export default router;
+generateDescriptionVariations
