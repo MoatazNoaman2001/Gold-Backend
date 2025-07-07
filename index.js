@@ -94,7 +94,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("Hello, Node.js Project!");
+  res.send("Hello, Debla Project!");
 });
 
 // Add request logging middleware
