@@ -24,6 +24,34 @@ const productSchema = new mongoose.Schema(
     },
     design_type: {
       type: String,
+      enum: [
+        "rings",
+        "chains",
+        "bracelets",
+        "earrings",
+        "necklaces",
+        "pendants",
+        "sets",
+        "watches",
+        "other",
+      ],
+      default: "other",
+      required: true,
+    },
+    category: {
+      type: String,
+      enum: [
+        "rings",
+        "chains",
+        "bracelets",
+        "earrings",
+        "necklaces",
+        "pendants",
+        "sets",
+        "watches",
+        "other",
+      ],
+      default: "other",
     },
     images_urls: [
       {

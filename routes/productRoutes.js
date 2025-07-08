@@ -11,6 +11,7 @@ import {
   removeFromFav,
   regenerateDescription,
   generateDescriptionVariations,
+  getRelatedProducts,
 } from "../controllers/productController.js";
 import {
   authenticateUser,
@@ -28,6 +29,8 @@ router.get("/favorite/:id", authenticateUser, getAllFav);
 router.delete("/favorite/:id", authenticateUser, removeFromFav);
 
 router.get("/", getAllProducts);
+
+router.get("/related", authenticateUser, getRelatedProducts);
 
 router.get("/shop/:shopId", getProductsByShop);
 
@@ -61,4 +64,3 @@ router.get(
 router.post("/track", authenticateUser, trackProductClick);
 
 export default router;
-generateDescriptionVariations;
