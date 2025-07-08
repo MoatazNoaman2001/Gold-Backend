@@ -5,17 +5,19 @@ import AIProductDescriptionService from "../services/aiProductDescriptionService
 import UserBehavior from "../models/userBehaviorModel.js";
 
 export const createProduct = catchAsync(async (req, res) => {
-  let {
-    title,
-    description,
-    price,
-    karat,
-    weight,
-    design_type,
-    category,
-    images_urls,
-    shop,
-  } = req.body;
+  let productData = req.body;
+  let { title, description, price, karat, weight, design_type, category, images_urls, shop } = productData;
+  // let {
+  //   title,
+  //   description,
+  //   price,
+  //   karat,
+  //   weight,
+  //   design_type,
+  //   category,
+  //   images_urls,
+  //   shop,
+  // } = req.body;
 
   // Validate design_type
   const validDesignTypes = [
@@ -38,6 +40,8 @@ export const createProduct = catchAsync(async (req, res) => {
       )}`,
     });
   }
+  console.log("Incoming productData:", productData);
+
  if (!description){
   let aiDescription; // Declare here
 
@@ -47,13 +51,7 @@ export const createProduct = catchAsync(async (req, res) => {
       process.env.OPENAI_API_KEY
     );
     // Generate AI-based product description
-    aiDescription = await aiService.generateDescription({
-      name: title,
-      category: design_type || "Jewelry",
-      features: [description],
-      targetAudience: "General Public",
-      basicDescription: description,
-    });
+    aiDescription = await aiService.generateDescription(productData);
   } catch (error) {
     console.error("Error generating AI description:", error);
     return res.status(500).json({
