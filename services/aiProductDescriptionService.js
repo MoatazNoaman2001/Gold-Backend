@@ -67,9 +67,6 @@ class AIProductDescriptionService {
     if (productData.design_type) {
       prompt += `نوع التصميم: ${productData.design_type}\n`;
     }
-    if (productData.price) {
-      prompt += `السعر: ${productData.price} جنيه مصري\n`;
-    }
     if (productData.features && productData.features.length > 0) {
       prompt += `الميزات الأساسية: ${productData.features.join(', ')}\n`;
     }
@@ -113,9 +110,7 @@ class AIProductDescriptionService {
     if (productData.design_type) {
       prompt += `Design Type: ${productData.design_type}\n`;
     }
-    if (productData.price) {
-      prompt += `Price: ${productData.price} EGP\n`;
-    }
+    
     if (productData.features && productData.features.length > 0) {
       prompt += `Key Features: ${productData.features.join(', ')}\n`;
     }

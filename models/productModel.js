@@ -11,7 +11,6 @@ const productSchema = new mongoose.Schema(
     },
     price: {
       type: mongoose.Decimal128,
-      required: true,
     },
     karat: {
       type: String,

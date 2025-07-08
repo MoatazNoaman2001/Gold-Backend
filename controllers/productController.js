@@ -7,18 +7,7 @@ import UserBehavior from "../models/userBehaviorModel.js";
 export const createProduct = catchAsync(async (req, res) => {
   let productData = req.body;
   let { title, description, price, karat, weight, design_type, category, images_urls, shop } = productData;
-  // let {
-  //   title,
-  //   description,
-  //   price,
-  //   karat,
-  //   weight,
-  //   design_type,
-  //   category,
-  //   images_urls,
-  //   shop,
-  // } = req.body;
-
+  
   // Validate design_type
   const validDesignTypes = [
     "rings",
