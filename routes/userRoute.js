@@ -16,7 +16,6 @@ import {
 import User from "../models/userModel.js";
 const router = express.Router();
 
-// Routes للمستخدم العادي
 router.put("/", authenticateUser, updateUser);
 router.delete("/", authenticateUser, deleteUser);
 router.post("/reset_password", authenticateUser, resetPassword);
@@ -24,11 +23,9 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPasswordWithToken);
 router.get("/me", authenticateUser, getUser);
 
-// Routes للأدمن فقط
-// تحديث دور المستخدم
+
 router.patch("/role", authenticateUser, requireAdmin, updateRole);
 
-// عرض جميع المستخدمين
 router.get("/all", authenticateUser, requireAdmin, async (req, res) => {
   try {
     const users = await User.find().select("-password -refreshToken");
@@ -38,7 +35,6 @@ router.get("/all", authenticateUser, requireAdmin, async (req, res) => {
   }
 });
 
-// عرض المستخدمين حسب الدور
 router.get("/role/:role", authenticateUser, requireAdmin, async (req, res) => {
   try {
     const { role } = req.params;

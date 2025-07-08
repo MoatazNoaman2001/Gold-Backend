@@ -16,7 +16,7 @@ class AIProductDescriptionService {
         messages: [
           {
             role: "system",
-            content: "You are a professional product description writer for e-commerce. Create compelling, SEO-friendly descriptions that highlight key features and benefits. Keep descriptions concise but informative and simple words, typically 50-100 words."
+            content: "You are a professional product description writer for e-commerce. Create compelling, SEO-friendly descriptions that highlight key features and benefits. Keep descriptions concise but informative and simple words if title arabic give me arabic description, typically 25-50 words."
           },
           {
             role: "user",
