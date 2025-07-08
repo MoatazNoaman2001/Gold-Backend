@@ -10,13 +10,14 @@ import {
   getAllFav,
   removeFromFav,
   regenerateDescription,
-  generateDescriptionVariations
+  generateDescriptionVariations,
 } from "../controllers/productController.js";
 import {
   authenticateUser,
   requireSeller,
   authorizeRoles,
 } from "../middlewares/auth.js";
+import { trackProductClick } from "../controllers/productController.js";
 
 const router = express.Router();
 
@@ -32,12 +33,32 @@ router.get("/shop/:shopId", getProductsByShop);
 
 router.get("/:id", getProduct);
 
-router.put( "/:id", authenticateUser, authorizeRoles("seller", "admin"), updateProduct);
+router.put(
+  "/:id",
+  authenticateUser,
+  authorizeRoles("seller", "admin"),
+  updateProduct
+);
 
-router.delete( "/:id", authenticateUser, authorizeRoles("seller", "admin"), deletedProduct);
+router.delete(
+  "/:id",
+  authenticateUser,
+  authorizeRoles("seller", "admin"),
+  deletedProduct
+);
 
+router.get(
+  "/generateDescriptionVariations/:productId",
+  authenticateUser,
+  generateDescriptionVariations
+);
+router.get(
+  "/regenerate-description/:productId",
+  authenticateUser,
+  regenerateDescription
+);
 
-router.get("/generateDescriptionVariations/:productId", authenticateUser, generateDescriptionVariations);
-router.get("/regenerate-description/:productId", authenticateUser, regenerateDescription);
+router.post("/track", authenticateUser, trackProductClick);
+
 export default router;
-generateDescriptionVariations
+generateDescriptionVariations;

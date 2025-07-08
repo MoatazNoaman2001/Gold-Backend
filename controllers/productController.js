@@ -1,7 +1,8 @@
 import { catchAsync } from "../utils/wrapperFunction.js";
 import Product from "../models/productModel.js";
 import Favorite from "../models/FavModels.js";
-import AIProductDescriptionService  from "../services/aiProductDescriptionService.js";
+import AIProductDescriptionService from "../services/aiProductDescriptionService.js";
+import UserBehavior from "../models/userBehaviorModel.js";
 
 export const createProduct = catchAsync(async (req, res) => {
   const {
@@ -19,10 +20,12 @@ export const createProduct = catchAsync(async (req, res) => {
 
   try {
     // Initialize AI service with API key
-    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);              
+    const aiService = new AIProductDescriptionService(
+      process.env.OPENAI_API_KEY
+    );
     // Generate AI-based product description
     aiDescription = await aiService.generateDescription({
-      name: title,  
+      name: title,
       category: "Jewelry",
       features: [description],
       targetAudience: "General Public",
@@ -31,7 +34,7 @@ export const createProduct = catchAsync(async (req, res) => {
   } catch (error) {
     console.error("Error generating AI description:", error);
     return res.status(500).json({
-      status: "fail", 
+      status: "fail",
       message: "Failed to generate AI description",
     });
   }
@@ -57,28 +60,58 @@ export const createProduct = catchAsync(async (req, res) => {
   });
 });
 
+// export const getAllProducts = catchAsync(async (req, res) => {
+//   let products;
+//   const { shopId } = req.query;
+
+//   if (shopId) {
+//     products = await Product.find({ shop: shopId }).populate(
+//       "shop",
+//       "name owner isApproved"
+//     );
+//   }
+//   else if (req.user && req.user.role === "seller") {
+//     const Shop = (await import("../models/shopModel.js")).default;
+//     const userShops = await Shop.find({ owner: req.user._id });
+//     const shopIds = userShops.map((shop) => shop._id);
+
+//     products = await Product.find({ shop: { $in: shopIds } }).populate(
+//       "shop",
+//       "name owner"
+//     );
+//   }
+//   else {
+//     products = await Product.find().populate("shop", "name owner isApproved");
+//   }
+
+//   res
+//     .status(200)
+//     .json({ status: "success", length: products.length, data: products });
+// });
+
 export const getAllProducts = catchAsync(async (req, res) => {
   let products;
-  const { shopId } = req.query;
 
-  if (shopId) {
-    products = await Product.find({ shop: shopId }).populate(
-      "shop",
-      "name owner isApproved"
-    );
-  }
-  else if (req.user && req.user.role === "seller") {
-    const Shop = (await import("../models/shopModel.js")).default;
-    const userShops = await Shop.find({ owner: req.user._id });
-    const shopIds = userShops.map((shop) => shop._id);
+  if (req.user) {
+    const userId = req.user._id;
 
-    products = await Product.find({ shop: { $in: shopIds } }).populate(
-      "shop",
-      "name owner"
-    );
-  }
-  else {
-    products = await Product.find().populate("shop", "name owner isApproved");
+    const interests = await UserBehavior.aggregate([
+      { $match: { userId } },
+      { $group: { _id: "$design_type", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    const prioritizedTypes = interests.map((item) => item._id);
+
+    products = await Product.find().populate("shop", "name");
+
+    products.sort((a, b) => {
+      const aIndex = prioritizedTypes.indexOf(a.design_type);
+      const bIndex = prioritizedTypes.indexOf(b.design_type);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+  } else {
+    products = await Product.find().populate("shop", "name");
   }
 
   res
@@ -214,39 +247,42 @@ export const generateDescriptionVariations = catchAsync(async (req, res) => {
       status: "fail",
       message: "Please provide a product ID",
     });
-  }   
+  }
   // Check if productId is a valid MongoDB ObjectId
   if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
     return res.status(422).json({
       status: "fail",
       message: "Invalid product ID format",
     });
-  } 
+  }
   // Check if product exists
   const product = await Product.findById(productId);
   if (!product) {
     return res.status(404).json({
       status: "fail",
       message: "Product not found",
-    });}
+    });
+  }
 
   // Validate required fields
-const { 
-        title, 
-        category, 
-        features, 
-        brand, 
-        Design_type, 
-        karat, 
-        weight, 
-        images_urls, 
-        description, 
-        targetAudience, 
-        basicDescription,
-        price
-      } = product;
+  const {
+    title,
+    category,
+    features,
+    brand,
+    Design_type,
+    karat,
+    weight,
+    images_urls,
+    description,
+    targetAudience,
+    basicDescription,
+    price,
+  } = product;
   try {
-    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);
+    const aiService = new AIProductDescriptionService(
+      process.env.OPENAI_API_KEY
+    );
     const descriptions = await aiService.generateVariations(productId, 3);
 
     res.status(200).json({
@@ -270,24 +306,27 @@ export const regenerateDescription = catchAsync(async (req, res) => {
       status: "fail",
       message: "Please provide a product ID",
     });
-  }   
+  }
   // Check if productId is a valid MongoDB ObjectId
   if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
     return res.status(422).json({
       status: "fail",
       message: "Invalid product ID format",
     });
-  } 
+  }
   // Check if product exists
   const product = await Product.findById(productId);
   if (!product) {
     return res.status(404).json({
       status: "fail",
       message: "Product not found",
-    });}
+    });
+  }
 
   try {
-    const aiService = new AIProductDescriptionService(process.env.OPENAI_API_KEY);
+    const aiService = new AIProductDescriptionService(
+      process.env.OPENAI_API_KEY
+    );
     const newDescription = await aiService.generateDescription({
       name: product.title,
       category: "Jewelry",
@@ -311,4 +350,24 @@ export const regenerateDescription = catchAsync(async (req, res) => {
       message: "Failed to regenerate description",
     });
   }
+});
+
+export const trackProductClick = catchAsync(async (req, res) => {
+  const { productId } = req.body;
+  const userId = req.user._id;
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res
+      .status(404)
+      .json({ status: "fail", message: "Product not found" });
+  }
+
+  await UserBehavior.create({
+    userId,
+    productId,
+    design_type: product.design_type,
+  });
+
+  res.status(201).json({ status: "success", message: "Interaction tracked" });
 });
