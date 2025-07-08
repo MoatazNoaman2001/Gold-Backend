@@ -5,7 +5,7 @@ import AIProductDescriptionService from "../services/aiProductDescriptionService
 import UserBehavior from "../models/userBehaviorModel.js";
 
 export const createProduct = catchAsync(async (req, res) => {
-  const {
+  let {
     title,
     description,
     price,
@@ -38,7 +38,7 @@ export const createProduct = catchAsync(async (req, res) => {
       )}`,
     });
   }
-
+ if (!description){
   let aiDescription; // Declare here
 
   try {
@@ -61,10 +61,11 @@ export const createProduct = catchAsync(async (req, res) => {
       message: "Failed to generate AI description",
     });
   }
-
+  description = aiDescription; // Assign AI-generated description
+ }
   const newProduct = new Product({
     title,
-    description: aiDescription, // Use AI-generated description
+    description,
     price,
     karat,
     weight,
