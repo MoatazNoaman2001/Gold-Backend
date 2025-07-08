@@ -18,5 +18,4 @@ const behaviorSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
-
 export default mongoose.model("UserBehavior", behaviorSchema);
