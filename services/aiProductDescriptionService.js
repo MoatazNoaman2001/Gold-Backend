@@ -13,7 +13,7 @@ class AIProductDescriptionService {
     const isArabic = /[\u0600-\u06FF]/.test(productData.title || "");
     console.log("Generating description for product:", productData.title);
     const systemMessage = isArabic
-      ? "أنت كاتب محترف لأوصاف المنتجات لمواقع التجارة الإلكترونية. أنشئ وصفًا جذابًا وصديقًا لمحركات البحث يبرز الميزات والفوائد الأساسية. اجعله بسيطًا ومختصرًا (25-30 كلمة)."
+      ? "أنت كاتب محترف لأوصاف المنتجات لمواقع التجارة الإلكترونية. أنشئ وصفًا جذابًا وصديقًا لمحركات البحث يبرز الميزات والفوائد الأساسية. اجعله بسيطًا ومختصرًا وبالعامية المصرية  [] (25-30 كلمة)."
       : "You are a professional product description writer for e-commerce. Create compelling, SEO-friendly descriptions that highlight key features and benefits. Keep descriptions concise but informative and use simple words, typically 25-30 words.";
 
     const response = await this.openai.chat.completions.create({
@@ -48,7 +48,7 @@ class AIProductDescriptionService {
 
   if (isArabic) {
     // Arabic prompt
-    let prompt = `اكتب وصفًا احترافيًا وصديقًا لمحركات البحث لمنتج مجوهرات بالتفاصيل التالية:\n\n`;
+    let prompt = `اكتب وصفًا  بالعامية المصرية وصديقًا لمحركات البحث لمنتج مجوهرات بالتفاصيل التالية:\n\n`;
     if (productData.title) {
       prompt += `اسم المنتج: ${productData.title}\n`;
     }
