@@ -90,8 +90,6 @@ passport.deserializeUser(async (id, done) => {
 app.get("/", (req, res) => {
   res.send("Hello, Node.js Project!");
 });
-
-
 app.use("/auth", authRoutes);
 app.use("/shop", shopRoutes);
 app.use("/product", productRoutes);
