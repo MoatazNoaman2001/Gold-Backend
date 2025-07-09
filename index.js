@@ -7,6 +7,7 @@ import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import dotenv from "dotenv";
 import rateRoutes from "./routes/rateRoutes.js";
+import cors from 'cors';
 
 import session from'express-session';
 import passport from 'passport';
@@ -22,6 +23,13 @@ let GoogleAuthStratigy = oauth20.Strategy;
 dotenv.config();
 const app = express();
 app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    callback(null, origin || '*');
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,

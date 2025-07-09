@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
 import Shop from '../models/shopModel.js';
+
 export const authenticateUser = async (req, res, next) => {
   let token;
   if (req.headers.authorization) {
@@ -49,8 +50,6 @@ export const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-
-
 export const verifyShopOwnership = async (req, res, next) => {
   try {
     if (!req.user) {
@@ -94,3 +93,4 @@ export const verifyShopOwnership = async (req, res, next) => {
     }
   }
 };
+
