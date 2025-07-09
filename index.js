@@ -23,11 +23,11 @@ const GoogleAuthStrategy = oauth20.Strategy;
 dotenv.config();
 const app = express();
 
-// Enable CORS for requests from http://localhost:5174
+// Enable CORS for requests from frontend
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow your frontend origin
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allow necessary methods
+    origin: ["http://localhost:5178", "http://localhost:5174"], // Allow both frontend ports
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })
 );
@@ -62,7 +62,7 @@ passport.use(
             name: profile.displayName,
             email: profile.emails[0].value,
             password: "google-auth-" + Math.random().toString(36).slice(-8),
-            role: "user",
+            role: "customer",
             googleId: profile.id,
             isVerified: true,
           });
@@ -118,6 +118,7 @@ app.use("/user", userRoutes);
 app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
 app.use("/dashboard", dashboardRoutes);
+
 
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);
