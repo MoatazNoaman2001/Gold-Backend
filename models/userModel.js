@@ -48,11 +48,12 @@ const userSchema = new mongoose.Schema({
 
     password: {
         type: String,
-        required: [true, 'Please provide a password'],
+        required: [function() { return !this.googleId; }, 'Please provide a password for non-Google accounts'],
         minlength: [6, 'Password must be at least 6 characters'],
         select: false,
         validate: {
             validator: function(v) {
+                if (!v) return this.googleId; // Allow no password if googleId exists
                 return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(v);
             },
             message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
@@ -77,7 +78,6 @@ const userSchema = new mongoose.Schema({
 }, {
     timestamps: true,
     collection: 'users',
-    // Transform the output to remove version and password fields
     toJSON: {
         transform: function(doc, ret) {
             delete ret.__v;
@@ -94,11 +94,11 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-userSchema.index({ email: 3 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true }); // Fixed index syntax (1, not 3)
 userSchema.index({ role: 1 });
 
 userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
+    if (!this.isModified('password') || !this.password) return next();
 
     try {
         const hashedPassword = await bcrypt.hash(this.password, 12);
@@ -122,23 +122,23 @@ userSchema.statics.findByRole = function (role) {
 };
 
 userSchema.post('save', function(error, doc, next) {
-  if (error.name === 'MongoServerError' && error.code === 11000) {
-    const field = Object.keys(error.keyPattern)[0];
-    next(new AppError(`The ${field} is already registered. Please use a different ${field}.`, 400));
-  } else if (error.name === 'ValidationError') {
-    const errors = {};
-    Object.keys(error.errors).forEach((key) => {
-      errors[key] = error.errors[key].message;
-    });
-    const message = 'Validation failed';
-    const validationError = new AppError(message, 400);
-    validationError.errors = errors;
-    next(validationError);
-  } else {
-    next(error);
-  }
+    if (error.name === 'MongoServerError' && error.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        next(new AppError(`The ${field} is already registered. Please use a different ${field}.`, 400));
+    } else if (error.name === 'ValidationError') {
+        const errors = {};
+        Object.keys(error.errors).forEach((key) => {
+            errors[key] = error.errors[key].message;
+        });
+        const message = 'Validation failed';
+        const validationError = new AppError(message, 400);
+        validationError.errors = errors;
+        next(validationError);
+    } else {
+        next(error);
+    }
 });
-  
+
 const User = mongoose.model('User', userSchema);
 
 export default User;
