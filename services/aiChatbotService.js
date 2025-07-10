@@ -10,7 +10,7 @@ export async function getChatbotResponse(message, user) {
   let context = "";
   let contextParts = [];
   if (keywords) {
-    // Products
+    // Products (populate shop and owner)
     const products = await Product.find({
       $or: [
         { title: { $regex: keywords, $options: "i" } },
@@ -18,9 +18,20 @@ export async function getChatbotResponse(message, user) {
         { design_type: { $regex: keywords, $options: "i" } },
         { category: { $regex: keywords, $options: "i" } }
       ]
-    }).limit(10);
+    })
+      .limit(10)
+      .populate({
+        path: "shop",
+        populate: { path: "owner", select: "name email" },
+        select: "name owner"
+      });
     if (products.length > 0) {
-      contextParts.push(products.map(p => `Product: ${p.title}\nType: ${p.design_type}\nKarat: ${p.karat}\nWeight: ${p.weight}\nDescription: ${p.description}\nShop: ${p.shop}` ).join("\n---\n"));
+      contextParts.push(products.map(p => {
+        const shopName = p.shop?.name || "N/A";
+        const ownerName = p.shop?.owner?.name || "N/A";
+        const ownerEmail = p.shop?.owner?.email || "N/A";
+        return `Product: ${p.title}\nType: ${p.design_type}\nKarat: ${p.karat}\nWeight: ${p.weight}\nDescription: ${p.description}\nShop: ${shopName}\nOwner: ${ownerName} (${ownerEmail})`;
+      }).join("\n---\n"));
     }
     // Shops
     if (/shop|store|عدد|shops|stores|متجر|محل|number|count|owner|مالك|اسم المتجر|اسم المحل|اسم البائع/i.test(message)) {
@@ -37,8 +48,58 @@ export async function getChatbotResponse(message, user) {
         contextParts.push('Owners: ' + owners.map(o => `${o.name} (${o.role}, ${o.email})`).join('; '));
       }
     }
+    // Products (by keyword)
+    if (
+      /product|عدد|products|منتج|number|count|اسم المنتج|اسم البرودكت/i.test(
+        message
+      )
+    ) {
+      const products = await Product.find({}).limit(20);
+      const productCount = await Product.countDocuments();
+      contextParts.push(`Number of products: ${productCount}`);
+      if (products.length > 0) {
+        contextParts.push(
+          "Product details: " + products.map((p) => `${p.name || p.title || p._id}`).join("; ")
+        );
+      }
+    }
+    // Products for a specific shop
+    // Try to find a shop name in the message
+    const allShops = await Shop.find({}, { name: 1 });
+    let matchedShop = null;
+    if (allShops && allShops.length > 0) {
+      matchedShop = allShops.find(shop =>
+        shop.name && new RegExp(shop.name, "i").test(message)
+      );
+    }
+    if (matchedShop) {
+      // If a shop is mentioned, get only its products
+      const shopProducts = await Product.find({ shop: matchedShop._id })
+        .limit(20)
+        .populate({
+          path: "shop",
+          populate: { path: "owner", select: "name email" },
+          select: "name owner"
+        });
+      contextParts.push(`Products for shop '${matchedShop.name}':`);
+      if (shopProducts.length > 0) {
+        contextParts.push(shopProducts.map(p => {
+          const shopName = p.shop?.name || "N/A";
+          const ownerName = p.shop?.owner?.name || "N/A";
+          const ownerEmail = p.shop?.owner?.email || "N/A";
+          return `Product: ${p.title}\nType: ${p.design_type}\nKarat: ${p.karat}\nWeight: ${p.weight}\nDescription: ${p.description}\nShop: ${shopName}\nOwner: ${ownerName} (${ownerEmail})`;
+        }).join("\n---\n"));
+      } else {
+        contextParts.push("No products found for this shop.");
+      }
+    }
   }
   context = contextParts.join("\n\n");
+
+  // If the user asks for properties of each product in each shop, but no data is found, generate a more helpful response
+  if (/properties.*product.*shop|خصائص.*منتج.*محل|مواصفات.*منتج.*متجر/i.test(message) && !context) {
+    return "I can provide product details for each shop if you specify a shop name, or ask about products in general. Please mention a specific shop or product for more information.";
+  }
 
   // 2. Build strict RAG prompt
   const prompt = `You are a helpful assistant for a digital gold platform.\nAnswer the user's question using ONLY the information in the context below.\nIf the answer is not in the context, say \"Sorry, I don't have that information.\"\n\nContext:\n${context || "No relevant data found."}\n\nUser: ${message}\nBot:`;
