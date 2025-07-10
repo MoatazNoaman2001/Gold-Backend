@@ -7,6 +7,7 @@ import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import rateRoutes from "./routes/rateRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import chatbotRoutes from "./routes/chatbotRoutes.js";
 import dotenv from "dotenv";
 import cors from "cors"; // Add CORS import
 import session from "express-session";
@@ -118,7 +119,7 @@ app.use("/user", userRoutes);
 app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
 app.use("/dashboard", dashboardRoutes);
-
+app.use("/chatbot", chatbotRoutes);
 
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);
