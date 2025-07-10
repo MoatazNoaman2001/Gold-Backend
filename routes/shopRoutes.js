@@ -7,6 +7,7 @@ import {
   deleteShop,
   getPublicShops,
   getPublicShop,
+  upload,
 } from "../controllers/shopController.js";
 import {
   authenticateUser,
@@ -26,7 +27,7 @@ router.get("/public", getPublicShops);
 router.get("/public/:id", getPublicShop);
 
 // إنشاء متجر - للبائعين فقط
-router.post("/create", authenticateUser, requireSeller, createShop);
+router.post("/create", authenticateUser, requireSeller, upload, createShop);
 
 // عرض جميع المتاجر - للجميع (مع المصادقة)
 router.get("/", authenticateUser, getAllShops);

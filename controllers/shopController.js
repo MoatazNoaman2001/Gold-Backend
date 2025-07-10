@@ -1,16 +1,63 @@
 import { catchAsync } from "../utils/wrapperFunction.js";
 import Shop from "../models/shopModel.js";
+import multer from "multer";
+import path from 'path';
 
-export const createShop = catchAsync(async (req, res) => {
-  const newShop = await Shop.create({
-    ...req.body,
-    owner: req.user._id, // assuming you're using auth middleware
-  });
-  res.status(201).json({
-    status: "success",
-    data: newShop,
-  });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/shop-images/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
 });
+
+const fileFilter = (req, file, cb) => {
+  console.log(JSON.stringify(file));
+  
+  const filetypes = /jpeg|jpg|png/;
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = filetypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    return cb(null, true);
+  }
+  cb(new Error("Only images (jpeg, jpg, png) are allowed: ", file.originalname));
+};
+
+export const upload = multer({
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter,
+}).fields([
+  { name: "logo", maxCount: 1 },
+  { name: "images", maxCount: 10 },
+]);
+
+export const createShop = async (req, res) => {
+  try {
+    const { logo, images } = req.files || {};
+    const shopData = {
+      ...req.body,
+      owner: req.user._id,
+      logoUrl: logo ? `/uploads/shop-images/${logo[0].filename}` : undefined,
+      images: images ? images.map(file => `/uploads/shop-images/${file.filename}`) : [],
+    };
+
+    const newShop = await Shop.create(shopData);
+    res.status(201).json({
+      status: "success",
+      data: newShop,
+    });
+  } catch (error) {
+    console.error(`Error creating shop: ${error}`);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to create shop",
+    });
+  }
+};
+
 
 export const getAllShops = catchAsync(async (req, res) => {
   let shops;
