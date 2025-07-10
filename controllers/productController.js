@@ -3,9 +3,44 @@ import Product from "../models/productModel.js";
 import Favorite from "../models/FavModels.js";
 import AIProductDescriptionService from "../services/aiProductDescriptionService.js";
 import UserBehavior from "../models/userBehaviorModel.js";
+import multer from "multer";
+import path from 'path';
+
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/shop-images/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  console.log(JSON.stringify(file));
+  
+  const filetypes = /jpeg|jpg|png/;
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = filetypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    return cb(null, true);
+  }
+  cb(new Error("Only images (jpeg, jpg, png) are allowed: ", file.originalname));
+};
+
+export const upload = multer({
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter,
+}).fields([
+  { name: "logo", maxCount: 1 },
+  { name: "images", maxCount: 10 },
+]);
 
 export const createProduct = catchAsync(async (req, res) => {
   let productData = req.body;
+  let {logo , images} = req.files || {};
   let { title, description, price, karat, weight, design_type, category, images_urls, shop } = productData;
   
   // Validate design_type
@@ -60,6 +95,8 @@ export const createProduct = catchAsync(async (req, res) => {
     category: category || design_type || "other",
     images_urls: images_urls || [],
     shop,
+    logoUrl: logo ? `/uploads/shop-images/${logo[0].filename}` : undefined,
+    images: images ? images.map(file => `/uploads/shop-images/${file.filename}`) : [],
   });
 
   const saveProduct = await newProduct.save();
