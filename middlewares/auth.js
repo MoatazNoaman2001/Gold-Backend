@@ -3,6 +3,37 @@ import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
 import Shop from '../models/shopModel.js';
 
+
+export const protect = async (req, res, next) => {
+  let token;
+  if (req.headers.authorization) {
+    if (req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    } else {
+      token = req.headers.authorization;
+    }
+  }
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized, no token" });
+  }
+  try {
+    console.log(`token: ${token}`);
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    console.log(`error: ${err}`);
+
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired" });
+    }
+    return res.status(401).json({ message: "Not authorized, invalid token" });
+  }
+};
 export const authenticateUser = async (req, res, next) => {
 
   let token;
@@ -52,36 +83,6 @@ export const restrictTo = (...roles) => {
   };
 };
 
-export const authenticateUser = async (req, res, next) => {
-  let token;
-  if (req.headers.authorization) {
-    if (req.headers.authorization.startsWith("Bearer ")) {
-      token = req.headers.authorization.split(" ")[1];
-    } else {
-      token = req.headers.authorization;
-    }
-  }
-  if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token" });
-  }
-  try {
-    console.log(`token: ${token}`);
-    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(401).json({ message: "User not found" });
-    }
-    req.user = user;
-    next();
-  } catch (err) {
-    console.log(`error: ${err}`);
-
-    if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ message: "Token expired" });
-    }
-    return res.status(401).json({ message: "Token invalid" });
-  }
-};
 
 export const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {

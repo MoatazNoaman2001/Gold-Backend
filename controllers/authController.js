@@ -173,24 +173,6 @@ export const logout = catchAsync(async (req, res) => {
   res.status(200).json({ message: "Logged out successfully" });
 });
 
-// export const googleAuth = catchAsync(async (req, res) => {
-//   const { accessToken, refreshToken } = generateTokens(req.user);
-
-//   req.user.refreshToken = refreshToken;
-//   await req.user.save();
-
-  res.cookie("jwt", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
-    maxAge: 15 * 24 * 60 * 60 * 1000,
-  });
-
-  res.status(200).json({
-    status: "success",
-    accessToken,
-  });
-});
 
 export const googleAuthFailure = (req, res) => {
   res.status(401).json({
