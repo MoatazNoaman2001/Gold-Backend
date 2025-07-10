@@ -12,6 +12,7 @@ import {
   regenerateDescription,
   generateDescriptionVariations,
   getRelatedProducts,
+  upload,
 } from "../controllers/productController.js";
 import {
   authenticateUser,
@@ -22,7 +23,7 @@ import { trackProductClick } from "../controllers/productController.js";
 
 const router = express.Router();
 
-router.post("/create", authenticateUser, requireSeller, createProduct);
+router.post("/create", authenticateUser, requireSeller, upload, createProduct);
 
 router.post("/favorite", authenticateUser, addToFav);
 router.get("/favorite/:id", authenticateUser, getAllFav);

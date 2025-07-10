@@ -12,7 +12,7 @@ const shopSchema = new mongoose.Schema(
       required: [true, "Shop name is required"],
     },
     logoUrl: String,
-    image: String, // Shop main image
+    images: [String], // Shop main image
     description: String,
     city: String,
     area: String,

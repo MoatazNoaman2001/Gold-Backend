@@ -10,8 +10,9 @@ router.get('/refresh', refresh);
 router.get('/logout', logout);
 
 router.get('/google', authenticateGoogle);
-router.get('/google/callback', handleGoogleCallback, googleAuth);
+// router.get('/google/callback', handleGoogleCallback, googleAuth);
 router.get('/google/failure', googleAuthFailure);
   
+router.post('/google', googleAuth);
 
 export default router;

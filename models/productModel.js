@@ -62,6 +62,12 @@ const productSchema = new mongoose.Schema(
       ref: "Shop",
       required: true,
     },
+    logoUrl: {
+      type: String
+    },
+    images: {
+      type: [String]
+    }
   },
   {
     timestamps: true,

@@ -6,6 +6,7 @@ import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import rateRoutes from "./routes/rateRoutes.js";
+
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
 import dotenv from "dotenv";
@@ -13,6 +14,7 @@ import cors from "cors"; // Add CORS import
 import session from "express-session";
 import passport from "passport";
 import oauth20 from "passport-google-oauth20";
+
 import User from "./models/userModel.js";
 import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
@@ -27,21 +29,28 @@ const app = express();
 // Enable CORS for requests from frontend
 app.use(
   cors({
-    origin: ["http://localhost:5178", "http://localhost:5174"], // Allow both frontend ports
+
+    origin: ["*"], // Allow both frontend ports
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })
 );
 
 app.use(express.json());
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false }, // Set to true if using HTTPS in production
-  })
-);
+app.use(cors({
+  origin: (origin, callback) => {
+    callback(null, origin || '*');
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false }
+}));
+
 
 app.use(passport.initialize());
 app.use(passport.session());
