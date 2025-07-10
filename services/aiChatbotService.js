@@ -2,13 +2,15 @@
 import OpenAI from "openai";
 import Product from "../models/productModel.js";
 import Shop from "../models/shopModel.js";
+import User from "../models/userModel.js";
 
 export async function getChatbotResponse(message, user) {
-  // 1. Retrieve relevant context (products + shop info)
+  // 1. Retrieve relevant context (products + shop info + owners)
   const keywords = message.split(/\s+/).filter(Boolean).slice(0, 7).join("|");
   let context = "";
   let contextParts = [];
   if (keywords) {
+    // Products
     const products = await Product.find({
       $or: [
         { title: { $regex: keywords, $options: "i" } },
@@ -16,17 +18,23 @@ export async function getChatbotResponse(message, user) {
         { design_type: { $regex: keywords, $options: "i" } },
         { category: { $regex: keywords, $options: "i" } }
       ]
-    }).limit(5);
+    }).limit(10);
     if (products.length > 0) {
-      contextParts.push(products.map(p => `Product: ${p.title}\nType: ${p.design_type}\nKarat: ${p.karat}\nWeight: ${p.weight}\nDescription: ${p.description}`).join("\n---\n"));
+      contextParts.push(products.map(p => `Product: ${p.title}\nType: ${p.design_type}\nKarat: ${p.karat}\nWeight: ${p.weight}\nDescription: ${p.description}\nShop: ${p.shop}` ).join("\n---\n"));
     }
-    // Add shop info if question is about shops
-    if (/shop|store|عدد|shops|stores|متجر|محل|number|count/i.test(message)) {
-      const shopCount = await Shop.countDocuments();
-      const shopNames = await Shop.find({}, {name:1}).limit(10);
-      contextParts.push(`Number of shops: ${shopCount}`);
-      if (shopNames.length > 0) {
-        contextParts.push('Shop names: ' + shopNames.map(s => s.name).join(', '));
+    // Shops
+    if (/shop|store|عدد|shops|stores|متجر|محل|number|count|owner|مالك|اسم المتجر|اسم المحل|اسم البائع/i.test(message)) {
+      const shops = await Shop.find({}).populate("owner", "name email").limit(20);
+      contextParts.push(`Number of shops: ${await Shop.countDocuments()}`);
+      if (shops.length > 0) {
+        contextParts.push('Shop details: ' + shops.map(s => `${s.name} (Owner: ${s.owner?.name || "N/A"}, Email: ${s.owner?.email || "N/A"})`).join('; '));
+      }
+    }
+    // Owners
+    if (/owner|مالك|بائع|seller|admin|user|مستخدم|اسم البائع|اسم المالك/i.test(message)) {
+      const owners = await User.find({}, {name:1, email:1, role:1}).limit(20);
+      if (owners.length > 0) {
+        contextParts.push('Owners: ' + owners.map(o => `${o.name} (${o.role}, ${o.email})`).join('; '));
       }
     }
   }
