@@ -164,6 +164,8 @@ export const getAllProducts = catchAsync(async (req, res) => {
     filter.karat = Number(karat);
   }
 
+  
+
   if (search) {
     filter.$or = [
       { title: { $regex: search, $options: "i" } },
