@@ -36,6 +36,16 @@ export const upload = multer({
 
 export const createShop = async (req, res) => {
   try {
+
+    // Check if user already has a shop
+    const existingShop = await Shop.findOne({ owner: req.user._id });
+    if (existingShop) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
+      });
+    }
+
     const { logo, images } = req.files || {};
     const shopData = {
       ...req.body,
