@@ -115,5 +115,22 @@ export async function getChatbotResponse(message, user) {
     max_tokens: 300,
     temperature: 0.2
   });
-  return response.choices[0].message.content.trim();
+  const answer = response.choices[0].message.content.trim();
+
+  // If the context is empty, provide a more helpful fallback response based on the question type
+  if (!context) {
+    if (/product|منتج|products|المنتجات/i.test(message)) {
+      return "Sorry, I couldn't find any product information matching your request. Please try specifying a product name, shop, or ask about something else.";
+    }
+    if (/shop|store|متجر|محل|shops|المتاجر|المحلات/i.test(message)) {
+      return "Sorry, I couldn't find any shop information matching your request. Please try specifying a shop name or ask about something else.";
+    }
+    if (/owner|admin|user|seller|بائع|مالك|مستخدم|ادمن/i.test(message)) {
+      return "Sorry, I couldn't find any owner or user information matching your request. Please try specifying a name or ask about something else.";
+    }
+    // General fallback
+    return "Sorry, I don't have that information. Please try rephrasing your question or ask about products, shops, or owners.";
+  }
+
+  return answer;
 }
