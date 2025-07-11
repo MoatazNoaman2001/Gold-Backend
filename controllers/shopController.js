@@ -58,49 +58,118 @@ export const createShop = async (req, res) => {
   }
 };
 
-
 export const getAllShops = catchAsync(async (req, res) => {
-  let shops;
+  // 1) Parse query parameters
+  const { location, rating, specialties, sortBy } = req.query;
+  
+  // 2) Initialize base query conditions
+  let filter = {};
+  let sortOption = '-createdAt'; // Default sort by newest
 
-  // إذا كان المستخدم بائع، أظهر متاجره فقط
+  // 3) Apply role-based filtering
   if (req.user.role === "seller") {
-    shops = await Shop.find({ owner: req.user._id }).populate(
-      "owner",
-      "name email"
-    );
-  }
-  // إذا كان أدمن، أظهر جميع المتاجر
+    filter.owner = req.user._id;
+    
+    // Location filter (search in city, area, or address)
+    if (location) {
+      filter.$or = [
+        { city: new RegExp(location, 'i') },
+        { area: new RegExp(location, 'i') },
+        { address: new RegExp(location, 'i') }
+      ];
+    }
+    
+    // Rating filter
+    if (rating) {
+      filter.averageRating = { $gte: Number(rating) };
+    }
+    
+    // Specialties filter - "like" search instead of exact match
+    if (specialties) {
+      const specialtiesArray = Array.isArray(specialties) 
+        ? specialties 
+        : specialties.split(',');
+
+      // Create an array of regex conditions for each specialty
+      const regexConditions = specialtiesArray.map(specialty => ({
+        specialties: { 
+          $regex: specialty.trim(), 
+          $options: 'i' // case insensitive
+        }
+      }));
+    
+      // Use $or to match any of the specialties
+      filter.$or = regexConditions;
+    }
+    // Sorting
+    if (sortBy) {
+      sortOption = sortBy;
+    }
+  } 
   else if (req.user.role === "admin") {
-    shops = await Shop.find().populate("owner", "name email");
-  }
-  // إذا كان عميل، أظهر المتاجر المُوافق عليها فقط
+    // Admins can see all shops without filters
+  } 
   else {
-    shops = await Shop.find({ isApproved: true }).populate(
-      "owner",
-      "name email"
-    );
+    // Regular users only see approved shops
+    filter.isApproved = true;
+    
+    // Optional: Apply public filters for regular users
+    if (location) {
+      filter.$or = [
+        { city: new RegExp(location, 'i') },
+        { area: new RegExp(location, 'i') }
+      ];
+    }
+
+    // Specialties filter - "like" search instead of exact match
+    if (specialties) {
+      const specialtiesArray = Array.isArray(specialties) 
+        ? specialties 
+        : specialties.split(',');
+      
+      // Create an array of regex conditions for each specialty
+      const regexConditions = specialtiesArray.map(specialty => ({
+        specialties: { 
+          $regex: specialty.trim(), 
+          $options: 'i' // case insensitive
+        }
+      }));
+    
+      // Use $or to match any of the specialties
+      filter.$or = regexConditions;
+    }
   }
 
-  // Add default values for missing fields
+  // 4) Execute the query
+  let shops = await Shop.find(filter)
+    .populate("owner", "name email")
+    .sort(sortOption);
+
+  // 5) Apply default values and transformations
   const shopsWithDefaults = shops.map((shop) => {
     const shopObj = shop.toObject();
+    
     return {
       ...shopObj,
-      address:
-        shopObj.address || shopObj.area || shopObj.city || "القاهرة، مصر",
+      address: shopObj.address || 
+               `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
       phone: shopObj.phone || shopObj.whatsapp || "01000000000",
-      specialties: shopObj.specialties || ["مجوهرات", "ذهب"],
+      specialties: shopObj.specialties?.length ? shopObj.specialties : ["مجوهرات", "ذهب"],
       workingHours: shopObj.workingHours || "9:00 ص - 9:00 م",
       rating: shopObj.rating || shopObj.averageRating || 4.5,
       reviewCount: shopObj.reviewCount || 10,
       description: shopObj.description || "متجر مجوهرات وذهب عالي الجودة",
+      // Calculate subscription status for frontend
+      isPremium: ['Premium', 'Gold'].includes(shopObj.subscriptionPlan),
+      isVerified: shopObj.isApproved && shopObj.reviewCount > 5
     };
   });
 
+  // 6) Send response
   res.status(200).json({
     status: "success",
-    result: shopsWithDefaults.length,
-    data: shopsWithDefaults,
+    results: shopsWithDefaults.length,
+    data: shopsWithDefaults
   });
 });
 

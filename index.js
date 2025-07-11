@@ -30,7 +30,7 @@ const app = express();
 app.use(
   cors({
 
-    origin: ["*"], // Allow both frontend ports
+    origin: ["http://localhost:5173"], // Allow both frontend ports
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })
