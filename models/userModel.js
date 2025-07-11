@@ -94,7 +94,6 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-userSchema.index({ email: 1 }, { unique: true }); // Fixed index syntax (1, not 3)
 userSchema.index({ role: 1 });
 
 userSchema.pre('save', async function (next) {
