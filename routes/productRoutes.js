@@ -6,13 +6,12 @@ import {
   getProductsByShop,
   updateProduct,
   deletedProduct,
-  addToFav,
   getAllFav,
-  removeFromFav,
   regenerateDescription,
   generateDescriptionVariations,
   getRelatedProducts,
   upload,
+  toggleFavorite,
 } from "../controllers/productController.js";
 import {
   authenticateUser,
@@ -25,9 +24,9 @@ const router = express.Router();
 
 router.post("/create", authenticateUser, requireSeller, upload, createProduct);
 
-router.post("/favorite", authenticateUser, addToFav);
-router.get("/favorite/:id", authenticateUser, getAllFav);
-router.delete("/favorite/:id", authenticateUser, removeFromFav);
+router.post("/favorite/:productId", authenticateUser, toggleFavorite);
+router.get("/favorite/:userId", authenticateUser, getAllFav);
+router.delete("/favorite/:productId", authenticateUser, toggleFavorite);
 
 router.get("/", getAllProducts);
 
@@ -35,7 +34,7 @@ router.get("/related", authenticateUser, getRelatedProducts);
 
 router.get("/shop/:shopId", getProductsByShop);
 
-router.get("/:id", getProduct);
+router.get("/:id",authenticateUser, getProduct);
 
 router.put(
   "/:id",

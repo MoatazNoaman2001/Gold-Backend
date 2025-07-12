@@ -19,6 +19,11 @@ import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
 import { initializeChatSocket } from "./sockets/socketService.js";
 import http from "http";
+import path, { dirname, join } from "path";
+import { fileURLToPath } from "url";
+import fs from 'fs/promises';
+import fss from 'fs';
+
 
 const GoogleAuthStrategy = oauth20.Strategy;
 
@@ -50,6 +55,60 @@ app.use(session({
   cookie: { secure: false }
 }));
 
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+app.get('/shop-image/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const safeFilename = filename.replace(/\.\.\//g, '').replace(/^\//, '');
+    const imagePath = join(__dirname, 'uploads', 'shop-images', safeFilename);
+    const fileExists = await fs.access(imagePath).then(() => true).catch(() => false);
+    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(imagePath);
+    
+    if (fileExists && isImage) {
+      res.sendFile(imagePath);
+    } else {
+      res.status(404).send('Image not found');
+    }
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+
+app.get('/product-image/:filename', async (req, res) => {
+  try {
+    // 1. Decode the URL-encoded filename
+    let filename = decodeURIComponent(req.params.filename);
+    
+    // 2. Additional security: replace any remaining problematic characters
+    filename = filename.replace(/\.\.\//g, '')     // Prevent directory traversal
+                      .replace(/\//g, '_')        // Replace slashes
+                      .replace(/\\/g, '_');       // Replace backslashes
+    
+    // 3. Construct the full path
+    const imagePath = path.join(__dirname, 'uploads', 'product-images', filename);
+    
+    // 4. Check if file exists and is an image
+    const fileExists = fss.existsSync(imagePath);
+    const isImage = /\.(jpe?g|png|gif|webp)$/i.test(filename);
+    console.log(`${fileExists}, ${isImage}`);
+    
+    if (fileExists && isImage) {
+      // Optional: Set caching headers
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      res.sendFile(imagePath);
+    } else {
+      res.status(404).send('Image not found');
+    }
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).send('Internal server error');
+  }
+});
 
 app.use(passport.initialize());
 app.use(passport.session());

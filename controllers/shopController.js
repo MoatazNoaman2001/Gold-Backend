@@ -8,7 +8,11 @@ const storage = multer.diskStorage({
     cb(null, "uploads/shop-images/");
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const sanitizedFilename = file.originalname
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9-.]/g, '')
+      .toLowerCase();
+    cb(null, `${Date.now()}-${sanitizedFilename}`);
   },
 });
 
@@ -61,9 +65,9 @@ export const createShop = async (req, res) => {
     const shopData = {
       ...req.body,
       owner: req.user._id,
-      logoUrl: logo ? `/uploads/shop-images/${logo[0].filename}` : undefined,
-      images: images ? images.map(file => `/uploads/shop-images/${file.filename}`) : [],
-      ...(locationData && { location: locationData })
+      logoUrl: logo ? `${logo[0].filename}` : undefined,
+      images: images ? images.map(file => `${file.filename}`) : [],
+
     };
 
     const newShop = await Shop.create(shopData);
