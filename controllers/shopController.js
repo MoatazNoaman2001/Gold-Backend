@@ -40,8 +40,8 @@ export const createShop = async (req, res) => {
     const shopData = {
       ...req.body,
       owner: req.user._id,
-      logoUrl: logo ? `/uploads/shop-images/${logo[0].filename}` : undefined,
-      images: images ? images.map(file => `/uploads/shop-images/${file.filename}`) : [],
+      logoUrl: logo ? `${logo[0].filename}` : undefined,
+      images: images ? images.map(file => `${file.filename}`) : [],
     };
 
     const newShop = await Shop.create(shopData);

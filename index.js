@@ -20,6 +20,10 @@ import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
 import { initializeChatSocket } from "./sockets/socketService.js";
 import http from "http";
+import path, { dirname, join } from "path";
+import { fileURLToPath } from "url";
+import fs from 'fs/promises';
+
 
 const GoogleAuthStrategy = oauth20.Strategy;
 
@@ -51,6 +55,48 @@ app.use(session({
   cookie: { secure: false }
 }));
 
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+app.get('/shop-image/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const safeFilename = filename.replace(/\.\.\//g, '').replace(/^\//, '');
+    const imagePath = join(__dirname, 'uploads', 'shop-images', safeFilename);
+    const fileExists = await fs.access(imagePath).then(() => true).catch(() => false);
+    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(imagePath);
+    
+    if (fileExists && isImage) {
+      res.sendFile(imagePath);
+    } else {
+      res.status(404).send('Image not found');
+    }
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+
+app.get('/product-image/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const safeFilename = filename.replace(/\.\.\//g, '').replace(/^\//, '');
+    const imagePath = join(__dirname, 'uploads', 'shop-images', safeFilename);
+    const fileExists = await fs.access(imagePath).then(() => true).catch(() => false);
+    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(imagePath);
+    
+    if (fileExists && isImage) {
+      res.sendFile(imagePath);
+    } else {
+      res.status(404).send('Image not found');
+    }
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).send('Internal server error');
+  }
+});
 
 app.use(passport.initialize());
 app.use(passport.session());

@@ -183,7 +183,7 @@ export const googleAuthFailure = (req, res) => {
 
 export const googleAuth = async (req, res) => {
   try {
-    const { credential } = req.body;
+    const { credential , role} = req.body;
 
     if (!credential) {
       return res.status(400).json({ message: 'ID token is required' });
@@ -212,7 +212,7 @@ export const googleAuth = async (req, res) => {
       user = await User.create({
         name,
         email,
-        role: 'customer',
+        role: role,
         googleId,
       });
       isNewUser = true;
@@ -234,6 +234,13 @@ export const googleAuth = async (req, res) => {
     res.status(200).json({
       status: "success",
       accessToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+      },
     });
   } catch (error) {
     console.error('Google auth error:', error);
