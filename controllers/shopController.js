@@ -40,12 +40,34 @@ export const upload = multer({
 
 export const createShop = async (req, res) => {
   try {
+
+    // Check if user already has a shop
+    const existingShop = await Shop.findOne({ owner: req.user._id });
+    if (existingShop) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
+      });
+    }
+
     const { logo, images } = req.files || {};
+
+    // Parse location data if it exists
+    let locationData = null;
+    if (req.body.location) {
+      try {
+        locationData = JSON.parse(req.body.location);
+      } catch (error) {
+        console.error('Error parsing location data:', error);
+      }
+    }
+
     const shopData = {
       ...req.body,
       owner: req.user._id,
       logoUrl: logo ? `${logo[0].filename}` : undefined,
       images: images ? images.map(file => `${file.filename}`) : [],
+
     };
 
     const newShop = await Shop.create(shopData);
@@ -208,7 +230,18 @@ export const deleteShop = catchAsync(async (req, res) => {
 });
 export const updateShop = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const updatedShop = await Shop.findByIdAndUpdate(id, req.body, {
+
+  // Parse location data if it exists and is a string
+  let updateData = { ...req.body };
+  if (req.body.location && typeof req.body.location === 'string') {
+    try {
+      updateData.location = JSON.parse(req.body.location);
+    } catch (error) {
+      console.error('Error parsing location data:', error);
+    }
+  }
+
+  const updatedShop = await Shop.findByIdAndUpdate(id, updateData, {
     new: true,
     runValidators: true,
   }).populate("owner", "name email");
