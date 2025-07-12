@@ -325,8 +325,8 @@ export const deletedProduct = catchAsync(async (req, res) => {
 
 
 export const getAllFav = catchAsync(async (req, res) => {
-  const { id } = req.params;
-  const favorites = await Favorite.find({ user: id })
+  const { userId } = req.params;
+  const favorites = await Favorite.find({ user: userId })
     .populate("product")
     .exec();
 
@@ -336,7 +336,39 @@ export const getAllFav = catchAsync(async (req, res) => {
     data: { favorites },
   });
 });
+export const toggleFavorite = catchAsync(async (req, res) => {
+  const { productId } = req.params;
+  const userId = req.user._id;
+  
+  // Check if the favorite already exists
+  const existingFavorite = await Favorite.findOne({
+    user: userId,
+    product: productId,
+  });
 
+  if (existingFavorite) {
+    // If exists, remove it
+    await Favorite.findByIdAndDelete(existingFavorite._id);
+    
+    return res.status(200).json({
+      status: "Removed",
+      message: "Product removed from favorites",
+      data: null
+    });
+  } else {
+    // If doesn't exist, add it
+    const newFavorite = await Favorite.create({
+      user: userId,
+      product: productId,
+    });
+
+    return res.status(201).json({
+      status: "Added",
+      message: "Product added to favorites",
+      data: newFavorite
+    });
+  }
+});
 export const generateDescriptionVariations = catchAsync(async (req, res) => {
   const { productId } = req.params;
   // Check if productId is provided
