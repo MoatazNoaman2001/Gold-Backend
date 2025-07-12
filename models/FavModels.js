@@ -19,11 +19,11 @@ const favSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    // _id: false
   }
 );
 
 favSchema.index({ user: 1, product: 1 }, { unique: true });
 
 const Favorite = mongoose.model("Favorite", favSchema);
-
 export default Favorite;

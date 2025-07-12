@@ -34,7 +34,7 @@ router.get("/related", authenticateUser, getRelatedProducts);
 
 router.get("/shop/:shopId", getProductsByShop);
 
-router.get("/:id", getProduct);
+router.get("/:id",authenticateUser, getProduct);
 
 router.put(
   "/:id",

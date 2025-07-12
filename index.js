@@ -23,6 +23,7 @@ import http from "http";
 import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from 'fs/promises';
+import fss from 'fs';
 
 
 const GoogleAuthStrategy = oauth20.Strategy;
@@ -81,13 +82,25 @@ app.get('/shop-image/:filename', async (req, res) => {
 
 app.get('/product-image/:filename', async (req, res) => {
   try {
-    const { filename } = req.params;
-    const safeFilename = filename.replace(/\.\.\//g, '').replace(/^\//, '');
-    const imagePath = join(__dirname, 'uploads', 'shop-images', safeFilename);
-    const fileExists = await fs.access(imagePath).then(() => true).catch(() => false);
-    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(imagePath);
+    // 1. Decode the URL-encoded filename
+    let filename = decodeURIComponent(req.params.filename);
+    
+    // 2. Additional security: replace any remaining problematic characters
+    filename = filename.replace(/\.\.\//g, '')     // Prevent directory traversal
+                      .replace(/\//g, '_')        // Replace slashes
+                      .replace(/\\/g, '_');       // Replace backslashes
+    
+    // 3. Construct the full path
+    const imagePath = path.join(__dirname, 'uploads', 'product-images', filename);
+    
+    // 4. Check if file exists and is an image
+    const fileExists = fss.existsSync(imagePath);
+    const isImage = /\.(jpe?g|png|gif|webp)$/i.test(filename);
+    console.log(`${fileExists}, ${isImage}`);
     
     if (fileExists && isImage) {
+      // Optional: Set caching headers
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
       res.sendFile(imagePath);
     } else {
       res.status(404).send('Image not found');

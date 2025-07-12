@@ -12,7 +12,11 @@ const storage = multer.diskStorage({
     cb(null, "uploads/product-images/");
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const sanitizedFilename = file.originalname
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9-.]/g, '')
+      .toLowerCase();
+    cb(null, `${Date.now()}-${sanitizedFilename}`);
   },
 });
 
@@ -228,6 +232,24 @@ export const getAllProducts = catchAsync(async (req, res) => {
 export const getProduct = catchAsync(async (req, res) => {
   const { id } = req.params;
   const product = await Product.findById(id).populate("shop", "name");
+
+  const userId = req.user._id;
+  
+  if (!userId){
+    return res.status(400).json({
+      message: "user must be authed"
+    })
+  }
+  
+  // Check if the favorite already exists
+  const existingFavorite = await Favorite.findOne({
+    user: userId,
+    product: product._id,
+  });
+  
+  if (existingFavorite){
+    product.isFav = true;
+  }
   if (!product) {
     return res
       .status(404)

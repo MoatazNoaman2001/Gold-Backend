@@ -8,7 +8,11 @@ const storage = multer.diskStorage({
     cb(null, "uploads/shop-images/");
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const sanitizedFilename = file.originalname
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9-.]/g, '')
+      .toLowerCase();
+    cb(null, `${Date.now()}-${sanitizedFilename}`);
   },
 });
 
