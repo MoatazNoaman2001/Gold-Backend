@@ -33,7 +33,7 @@ const app = express();
 app.use(
   cors({
     //  origin: ["http://localhost:5173"], // Allow both frontend ports
-    origin: ["https://gold-frontend-pegv.vercel.app", "http://localhost:5173"], // Allow both frontend ports
+    origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })
