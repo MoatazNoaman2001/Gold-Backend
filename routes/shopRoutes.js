@@ -20,22 +20,16 @@ import Shop from "../models/shopModel.js";
 const router = express.Router();
 
 // Public routes (no authentication required)
-// عرض المتاجر المُوافق عليها - للجميع (بدون مصادقة)
 router.get("/public", getPublicShops);
 
-// عرض متجر محدد مُوافق عليه - للجميع (بدون مصادقة)
 router.get("/public/:id", getPublicShop);
 
-// إنشاء متجر - للبائعين فقط
 router.post("/create", authenticateUser, requireSeller, upload, createShop);
 
-// عرض جميع المتاجر - للجميع (مع المصادقة)
 router.get("/", authenticateUser, getAllShops);
 
-// عرض متجر محدد - للجميع (مع المصادقة)
 router.get("/:id", authenticateUser, getShop);
 
-// تحديث متجر - لصاحب المتجر أو الأدمن
 router.put(
   "/:id",
   authenticateUser,
@@ -43,7 +37,6 @@ router.put(
   updateShop
 );
 
-// حذف متجر - لصاحب المتجر أو الأدمن
 router.delete(
   "/:id",
   authenticateUser,
@@ -51,8 +44,7 @@ router.delete(
   deleteShop
 );
 
-// Routes خاصة بالأدمن
-// الموافقة على متجر
+
 router.patch(
   "/:id/approve",
   authenticateUser,
@@ -83,7 +75,6 @@ router.patch(
   }
 );
 
-// رفض متجر
 router.patch(
   "/:id/reject",
   authenticateUser,

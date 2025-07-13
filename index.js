@@ -14,7 +14,6 @@ import cors from "cors"; // Add CORS import
 import session from "express-session";
 import passport from "passport";
 import oauth20 from "passport-google-oauth20";
-
 import User from "./models/userModel.js";
 import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
@@ -34,8 +33,8 @@ const app = express();
 // Enable CORS for requests from frontend
 app.use(
   cors({
-
-    origin: ["http://localhost:5173"], // Allow both frontend ports
+  //  origin: ["http://localhost:5173"], // Allow both frontend ports
+      origin: ["https://gold-frontend-pi.vercel.app" , "http://localhost:5174"], // Allow both frontend ports
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
     credentials: true, // Allow cookies and sessions
   })
