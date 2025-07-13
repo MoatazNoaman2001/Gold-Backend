@@ -1,4 +1,3 @@
-
 import { catchAsync } from '../utils/wrapperFunction.js';
 import User from '../models/userModel.js';
 import bcrypt from 'bcrypt';
@@ -7,7 +6,6 @@ import { OAuth2Client } from 'google-auth-library';
 import { config } from 'dotenv';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
 
 const generateTokens = (user) => {
   const accessToken = jwt.sign(
@@ -37,7 +35,6 @@ export const register = catchAsync(async (req, res) => {
   const { name, email, phone, password, role } = req.body;
 
   const existingUser = await User.findOne({ email });
-  console.log(JSON.stringify(existingUser));
   
   if (existingUser) {
     return res.status(400).json({ message: "User already exists" });
@@ -82,16 +79,6 @@ export const login = catchAsync(async (req, res) => {
     });
   }
 
-  // const token = jwt.sign(
-  //   {
-  //     id: user._id,
-  //     email: user.email,
-  //     role: user.role
-  //   },
-  //   process.env.JWT_SECRET,
-  //   { expiresIn: "1h" }
-  // );
-
   const { accessToken, refreshToken } = generateTokens(user);
   user.refreshToken = refreshToken;
   await user.save();
@@ -120,32 +107,64 @@ export const refresh = catchAsync(async (req, res) => {
   const cookies = req.cookies;
 
   if (!cookies?.jwt) {
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ 
+      status: "fail",
+      message: "No refresh token provided" 
+    });
   }
 
   const refreshToken = cookies.jwt;
 
-  const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(403).json({ 
+        status: "fail",
+        message: "User not found" 
+      });
+    }
 
-  const user = await User.findById(decoded.id);
+    if (!user.refreshToken || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ 
+        status: "fail",
+        message: "Invalid refresh token" 
+      });
+    }
 
-  if (!user || user.refreshToken !== refreshToken) {
-    return res.status(403).json({ message: "Forbidden" });
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
+
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    res.cookie("jwt", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 15 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ 
+      status: "success",
+      accessToken 
+    });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        status: "fail",
+        message: "Invalid refresh token" 
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        status: "fail",
+        message: "Refresh token expired" 
+      });
+    }
+    throw error;
   }
-
-  const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
-
-  user.refreshToken = newRefreshToken;
-  await user.save();
-
-  res.cookie("jwt", newRefreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
-    maxAge: 15 * 24 * 60 * 60 * 1000,
-  });
-
-  res.json({ accessToken });
 });
 
 export const logout = catchAsync(async (req, res) => {
@@ -170,9 +189,11 @@ export const logout = catchAsync(async (req, res) => {
     sameSite: "Strict",
   });
 
-  res.status(200).json({ message: "Logged out successfully" });
+  res.status(200).json({ 
+    status: "success",
+    message: "Logged out successfully" 
+  });
 });
-
 
 export const googleAuthFailure = (req, res) => {
   res.status(401).json({
@@ -183,14 +204,15 @@ export const googleAuthFailure = (req, res) => {
 
 export const googleAuth = async (req, res) => {
   try {
-    const { credential , role} = req.body;
+    const { credential, role } = req.body;
 
     if (!credential) {
-      return res.status(400).json({ message: 'ID token is required' });
+      return res.status(400).json({ 
+        status: "fail",
+        message: 'ID token is required' 
+      });
     }
-    
 
-    // Verify the Google ID token
     const ticket = await client.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -198,17 +220,11 @@ export const googleAuth = async (req, res) => {
 
     const payload = ticket.getPayload();
     const { email, sub: googleId, name, picture } = payload;
-
-    console.log(name);
     
-    // Check if the user exists
     let user = await User.findOne({ email: email });
-
     let isNewUser = false;
-    console.log(email);
   
     if (!user) {
-      // Register new user
       user = await User.create({
         name,
         email,
@@ -216,11 +232,15 @@ export const googleAuth = async (req, res) => {
         googleId,
       });
       isNewUser = true;
+    } else if (user.googleId && user.googleId !== googleId) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Email already registered with different method"
+      });
     }
 
-    // Generate JWT
-    const {accessToken, refreshToken} = generateTokens(user);
-    user.refreshToken= refreshToken;
+    const { accessToken, refreshToken } = generateTokens(user);
+    user.refreshToken = refreshToken;
     await user.save();
     
     res.cookie('jwt', refreshToken, {
@@ -229,7 +249,6 @@ export const googleAuth = async (req, res) => {
       sameSite: 'Strict',
       maxAge: 15 * 24 * 60 * 60 * 1000
     });
-
 
     res.status(200).json({
       status: "success",
@@ -241,9 +260,13 @@ export const googleAuth = async (req, res) => {
         role: user.role,
         phone: user.phone,
       },
+      isNewUser
     });
   } catch (error) {
     console.error('Google auth error:', error);
-    res.status(401).json({ message: 'Google authentication failed' });
+    res.status(401).json({ 
+      status: "fail",
+      message: 'Google authentication failed' 
+    });
   }
-};
+}; 
