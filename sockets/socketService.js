@@ -2,8 +2,22 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import { Message, Conversation } from "../models/chatModel.js";
+import { 
+  SOCKET_SECURITY_CONFIG, 
+  sanitizeInput, 
+  RateLimiter, 
+  SecurityLogger, 
+  ConnectionMonitor 
+} from "../utils/socketSecurity.js";
 
 let io;
+const rateLimiter = new RateLimiter();
+const connectionMonitor = new ConnectionMonitor();
+
+// Clean up rate limiter periodically
+setInterval(() => {
+  rateLimiter.cleanup();
+}, 60000);
 
 export const initializeChatSocket = (server) => {
   io = new Server(server, {
@@ -63,7 +77,16 @@ export const initializeChatSocket = (server) => {
 
   io.use((socket, next) => {
     const req = socket.request;
-    console.log(`Connection attempt from: ${req.headers.origin}`);
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'Unknown';
+    
+    console.log(`Connection attempt from: ${req.headers.origin} | IP: ${ip} | User-Agent: ${userAgent}`);
+    
+    // Log suspicious connections
+    if (!req.headers.origin || req.headers.origin === 'null') {
+      console.warn(`Suspicious connection attempt - No origin: ${ip}`);
+    }
+    
     if (req.newAccessToken) {
       socket.emit("newAccessToken", req.newAccessToken);
     }
@@ -80,8 +103,22 @@ export const initializeChatSocket = (server) => {
     }
     socket.on("createConversation", async ({ productId, participantId }, callback) => {
       try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'createConversation')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before creating another conversation." });
+        }
+
+        // Input validation and sanitization
         if (!productId || !participantId) {
           return callback({ status: "error", message: "Product ID and participant ID are required" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(productId)) {
+          return callback({ status: "error", message: "Invalid product ID format" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(participantId)) {
+          return callback({ status: "error", message: "Invalid participant ID format" });
         }
 
         const participant = await User.findById(participantId);
@@ -117,6 +154,20 @@ export const initializeChatSocket = (server) => {
 
     socket.on("joinConversation", async ({ conversationId }, callback) => {
       try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'joinConversation')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before joining another conversation." });
+        }
+
+        // Input validation
+        if (!conversationId) {
+          return callback({ status: "error", message: "Conversation ID is required" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
+          return callback({ status: "error", message: "Invalid conversation ID format" });
+        }
+
         const conversation = await Conversation.findById(conversationId)
           .populate("participants", "name email")
           .populate("lastMessage");
@@ -124,7 +175,7 @@ export const initializeChatSocket = (server) => {
           return callback({ status: "error", message: "Conversation not found" });
         }
         if (!conversation.participants.some(p => p._id.equals(user._id))) {
-          return callback({ status: "error", message: "Not authorized to joint this conversation" });
+          return callback({ status: "error", message: "Not authorized to join this conversation" });
         }
         socket.join(conversation._id.toString());
         callback({ status: "success", conversation });
@@ -147,6 +198,24 @@ export const initializeChatSocket = (server) => {
 
     socket.on("getMessages", async ({ conversationId, limit = 20, skip = 0 }, callback) => {
       try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'getMessages')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before requesting more messages." });
+        }
+
+        // Input validation
+        if (!conversationId) {
+          return callback({ status: "error", message: "Conversation ID is required" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
+          return callback({ status: "error", message: "Invalid conversation ID format" });
+        }
+
+        // Sanitize pagination parameters
+        const sanitizedLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 100); // Max 100 messages per request
+        const sanitizedSkip = Math.max(parseInt(skip) || 0, 0);
+
         const conversation = await Conversation.findById(conversationId);
         if (!conversation) {
           return callback({ status: "error", message: "Conversation not found" });
@@ -158,8 +227,8 @@ export const initializeChatSocket = (server) => {
           .populate("sender", "name email")
           .populate("receiver", "name email")
           .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit);
+          .skip(sanitizedSkip)
+          .limit(sanitizedLimit);
         callback({ status: "success", messages });
       } catch (err) {
         callback({ status: "error", message: err.message });
@@ -168,6 +237,35 @@ export const initializeChatSocket = (server) => {
 
     socket.on("sendMessage", async ({ conversationId, content, productId }, callback) => {
       try {
+        // Rate limiting - stricter for message sending
+        if (!checkRateLimit(user._id.toString(), 'sendMessage')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before sending another message." });
+        }
+
+        // Input validation
+        if (!conversationId) {
+          return callback({ status: "error", message: "Conversation ID is required" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
+          return callback({ status: "error", message: "Invalid conversation ID format" });
+        }
+
+        if (!content || typeof content !== 'string') {
+          return callback({ status: "error", message: "Message content is required" });
+        }
+
+        // Sanitize message content
+        const sanitizedContent = sanitizeInput(content);
+        if (!sanitizedContent) {
+          return callback({ status: "error", message: "Message content cannot be empty after sanitization" });
+        }
+
+        // Validate productId if provided
+        if (productId && !SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(productId)) {
+          return callback({ status: "error", message: "Invalid product ID format" });
+        }
+
         let conversation = await Conversation.findById(conversationId);
         if (!conversation) {
           return callback({ status: "error", message: "Conversation not found" });
@@ -179,7 +277,7 @@ export const initializeChatSocket = (server) => {
         const message = await Message.create({
           sender: user._id,
           receiver: conversation.participants.find(p => !p._id.equals(user._id)),
-          content,
+          content: sanitizedContent,
           product: productId || conversation.product,
           conversation: conversationId
         });
@@ -202,6 +300,21 @@ export const initializeChatSocket = (server) => {
 
     socket.on("markAsRead", async ({ messageId }, callback) => {
       try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'markAsRead')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before marking more messages as read." });
+        }
+
+        // Input validation
+        if (!messageId) {
+          return callback({ status: "error", message: "Message ID is required" });
+        }
+
+        // Validate message ID format (24 character hex string)
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(messageId)) {
+          return callback({ status: "error", message: "Invalid message ID format" });
+        }
+
         const message = await Message.findById(messageId);
         if (!message) {
           return callback({ status: "error", message: "Message not found" });
@@ -230,7 +343,15 @@ export const initializeChatSocket = (server) => {
     });
 
     socket.on("error", (err) => {
-      console.error("Socket error:", err);
+      console.error(`Socket error for user ${user?.email}:`, err);
+    });
+
+    // Security monitoring
+    socket.onAny((eventName, ...args) => {
+      // Log all events for security monitoring
+      if (eventName !== 'ping' && eventName !== 'pong') {
+        console.log(`Event: ${eventName} | User: ${user?.email} | Args: ${JSON.stringify(args)}`);
+      }
     });
 
     socket.on("reconnect_attempt", () => {
