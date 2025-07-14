@@ -104,7 +104,12 @@ export const initializeChatSocket = (server) => {
     socket.on("createConversation", async ({ productId, participantId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'createConversation')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'createConversation',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.createConversation.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.createConversation.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before creating another conversation." });
         }
 
@@ -155,7 +160,12 @@ export const initializeChatSocket = (server) => {
     socket.on("joinConversation", async ({ conversationId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'joinConversation')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'joinConversation',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.joinConversation.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.joinConversation.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before joining another conversation." });
         }
 
@@ -199,7 +209,12 @@ export const initializeChatSocket = (server) => {
     socket.on("getMessages", async ({ conversationId, limit = 20, skip = 0 }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'getMessages')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'getMessages',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.getMessages.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.getMessages.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before requesting more messages." });
         }
 
@@ -238,7 +253,12 @@ export const initializeChatSocket = (server) => {
     socket.on("sendMessage", async ({ conversationId, content, productId }, callback) => {
       try {
         // Rate limiting - stricter for message sending
-        if (!checkRateLimit(user._id.toString(), 'sendMessage')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'sendMessage',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.sendMessage.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.sendMessage.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before sending another message." });
         }
 
@@ -301,7 +321,12 @@ export const initializeChatSocket = (server) => {
     socket.on("markAsRead", async ({ messageId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'markAsRead')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'markAsRead',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.markAsRead.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.markAsRead.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before marking more messages as read." });
         }
 
