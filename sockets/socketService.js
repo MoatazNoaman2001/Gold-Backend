@@ -2,17 +2,37 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel.js";
 import { Message, Conversation } from "../models/chatModel.js";
-import { 
-  SOCKET_SECURITY_CONFIG, 
-  sanitizeInput, 
-  RateLimiter, 
-  SecurityLogger, 
-  ConnectionMonitor 
+import {
+  SOCKET_SECURITY_CONFIG,
+  sanitizeInput,
+  RateLimiter,
+  SecurityLogger,
+  ConnectionMonitor
 } from "../utils/socketSecurity.js";
 
 let io;
 const rateLimiter = new RateLimiter();
 const connectionMonitor = new ConnectionMonitor();
+
+function checkRateLimit(userId, action) {
+  const limits = {
+    'createShopConversation': { max: 10, window: 60000 },
+    'createConversation': { max: 10, window: 60000 },
+    'sendMessage': { max: 50, window: 60000 },
+    'joinConversation': { max: 20, window: 60000 },
+    'getMessages': { max: 100, window: 60000 },
+    'markAsRead': { max: 100, window: 60000 },
+    'sendTypingIndicator': { max: 200, window: 60000 },
+    'getShopConversations': { max: 50, window: 60000 }
+  };
+
+  return rateLimiter.isAllowed(
+    userId,
+    action,
+    limits[action]?.max || 10,
+    limits[action]?.window || 60000
+  );
+}
 
 // Clean up rate limiter periodically
 setInterval(() => {
@@ -33,9 +53,9 @@ export const initializeChatSocket = (server) => {
     cookie: false,
     allowRequest: async (req, callback) => {
       try {
-        const token = req.headers.authorization?.split(' ')[1] || 
-                     req._query?.token ||
-                     req.cookies?.jwt;
+        const token = req.headers.authorization?.split(' ')[1] ||
+          req._query?.token ||
+          req.cookies?.jwt;
         if (!token) return callback("No token provided", false);
 
         let decoded;
@@ -66,7 +86,7 @@ export const initializeChatSocket = (server) => {
 
         const user = await User.findById(decoded.id);
         if (!user) return callback("User not found", false);
-        
+
         req.user = user;
         callback(null, true);
       } catch (err) {
@@ -79,14 +99,14 @@ export const initializeChatSocket = (server) => {
     const req = socket.request;
     const userAgent = req.headers['user-agent'] || 'Unknown';
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'Unknown';
-    
+
     console.log(`Connection attempt from: ${req.headers.origin} | IP: ${ip} | User-Agent: ${userAgent}`);
-    
+
     // Log suspicious connections
     if (!req.headers.origin || req.headers.origin === 'null') {
       console.warn(`Suspicious connection attempt - No origin: ${ip}`);
     }
-    
+
     if (req.newAccessToken) {
       socket.emit("newAccessToken", req.newAccessToken);
     }
@@ -104,7 +124,12 @@ export const initializeChatSocket = (server) => {
     socket.on("createConversation", async ({ productId, participantId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'createConversation')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'createConversation',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.createConversation.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.createConversation.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before creating another conversation." });
         }
 
@@ -155,7 +180,12 @@ export const initializeChatSocket = (server) => {
     socket.on("joinConversation", async ({ conversationId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'joinConversation')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'joinConversation',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.joinConversation.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.joinConversation.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before joining another conversation." });
         }
 
@@ -199,7 +229,12 @@ export const initializeChatSocket = (server) => {
     socket.on("getMessages", async ({ conversationId, limit = 20, skip = 0 }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'getMessages')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'getMessages',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.getMessages.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.getMessages.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before requesting more messages." });
         }
 
@@ -237,7 +272,7 @@ export const initializeChatSocket = (server) => {
 
     socket.on("sendMessage", async ({ conversationId, content, productId }, callback) => {
       try {
-        // Rate limiting - stricter for message sending
+        // Rate limiting
         if (!checkRateLimit(user._id.toString(), 'sendMessage')) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before sending another message." });
         }
@@ -261,39 +296,53 @@ export const initializeChatSocket = (server) => {
           return callback({ status: "error", message: "Message content cannot be empty after sanitization" });
         }
 
-        // Validate productId if provided
-        if (productId && !SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(productId)) {
-          return callback({ status: "error", message: "Invalid product ID format" });
-        }
-
+        // Find conversation
         let conversation = await Conversation.findById(conversationId);
         if (!conversation) {
           return callback({ status: "error", message: "Conversation not found" });
         }
+        
+        // Check authorization
         if (!conversation.participants.some(p => p._id.equals(user._id))) {
           return callback({ status: "error", message: "Not authorized to send message in this conversation" });
         }
 
+        // Find receiver
+        const receiverId = conversation.participants.find(p => !p._id.equals(user._id));
+
+        // Create message
         const message = await Message.create({
           sender: user._id,
-          receiver: conversation.participants.find(p => !p._id.equals(user._id)),
+          receiver: receiverId,
           content: sanitizedContent,
           product: productId || conversation.product,
           conversation: conversationId
         });
 
+        // Update conversation
         await Conversation.findByIdAndUpdate(conversationId, {
           lastMessage: message._id,
           updatedAt: new Date()
         });
 
+        // Populate message
         const populatedMessage = await Message.findById(message._id)
           .populate("sender", "name email")
           .populate("receiver", "name email");
 
-        io.to(conversation._id.toString()).emit("newMessage", populatedMessage);
+        // Broadcast to conversation room
+        io.to(conversationId).emit("newMessage", populatedMessage);
+        
+        // Send to receiver's personal room (in case they're not in conversation room)
+        if (receiverId) {
+          io.to(receiverId.toString()).emit("newMessage", populatedMessage);
+        }
+
         callback({ status: "success", message: populatedMessage });
+        console.log(`Message sent in conversation ${conversationId}`);
+        
       } catch (err) {
+        console.error('Error sending message:', err);
         callback({ status: "error", message: err.message });
       }
     });
@@ -301,7 +350,12 @@ export const initializeChatSocket = (server) => {
     socket.on("markAsRead", async ({ messageId }, callback) => {
       try {
         // Rate limiting
-        if (!checkRateLimit(user._id.toString(), 'markAsRead')) {
+        if (!rateLimiter.isAllowed(
+          user._id.toString(),
+          'markAsRead',
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.markAsRead.max,
+          SOCKET_SECURITY_CONFIG.RATE_LIMITS.markAsRead.window
+        )) {
           return callback({ status: "error", message: "Rate limit exceeded. Please wait before marking more messages as read." });
         }
 
@@ -327,6 +381,152 @@ export const initializeChatSocket = (server) => {
         io.to(message.sender.toString()).emit("messageRead", { messageId });
         callback({ status: "success" });
       } catch (err) {
+        callback({ status: "error", message: err.message });
+      }
+    });
+
+    socket.on("createShopConversation", async ({ productId, shopOwnerId }, callback) => {
+      try {
+        console.log(`Creating shop conversation: productId=${productId}, shopOwnerId=${shopOwnerId}, userId=${user._id}`);
+        
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'createShopConversation')) {
+          return callback({ status: "error", message: "Rate limit exceeded. Please wait before creating another conversation." });
+        }
+
+        // Input validation
+        if (!productId || !shopOwnerId) {
+          return callback({ status: "error", message: "Product ID and shop owner ID are required" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(productId)) {
+          return callback({ status: "error", message: "Invalid product ID format" });
+        }
+
+        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(shopOwnerId)) {
+          return callback({ status: "error", message: "Invalid shop owner ID format" });
+        }
+
+        // Check if trying to chat with yourself
+        if (shopOwnerId === user._id.toString()) {
+          return callback({ status: "error", message: "Cannot create conversation with yourself" });
+        }
+
+        // Find shop owner
+        const shopOwner = await User.findById(shopOwnerId);
+        if (!shopOwner) {
+          return callback({ status: "error", message: "Shop owner not found" });
+        }
+
+        // Check for existing conversation
+        const existingConversation = await Conversation.findOne({
+          participants: { $all: [user._id, shopOwnerId] },
+          product: productId,
+          type: "shop_chat"
+        });
+
+        if (existingConversation) {
+          socket.join(existingConversation._id.toString());
+          return callback({ status: "success", conversationId: existingConversation._id });
+        }
+
+        // Create new shop conversation
+        const conversation = await Conversation.create({
+          participants: [user._id, shopOwnerId],
+          product: productId,
+          type: "shop_chat",
+          createdBy: user._id
+        });
+
+        socket.join(conversation._id.toString());
+        
+        // Notify shop owner
+        io.to(shopOwnerId).emit("newShopConversation", { 
+          conversationId: conversation._id,
+          customer: {
+            _id: user._id,
+            name: user.name,
+            email: user.email
+          },
+          productId: productId
+        });
+
+        callback({ status: "success", conversationId: conversation._id });
+        console.log(`Shop conversation created: ${conversation._id}`);
+        
+      } catch (err) {
+        console.error('Error creating shop conversation:', err);
+        callback({ status: "error", message: err.message });
+      }
+    });
+
+    // Add TYPING INDICATOR handler
+    socket.on("sendTypingIndicator", async ({ conversationId, isTyping }, callback) => {
+      try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'sendTypingIndicator')) {
+          return; // Just ignore if rate limited, don't send error
+        }
+
+        // Input validation
+        if (!conversationId || !SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
+          return; // Just ignore invalid requests
+        }
+
+        // Check if user is participant
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation || !conversation.participants.some(p => p._id.equals(user._id))) {
+          return; // Just ignore unauthorized requests
+        }
+
+        // Broadcast typing status to other participants in the conversation
+        socket.to(conversationId).emit("userTyping", {
+          userId: user._id,
+          userName: user.name,
+          isTyping: Boolean(isTyping)
+        });
+
+        if (callback && typeof callback === 'function') {
+          callback({ status: "success" });
+        }
+        
+      } catch (err) {
+        console.error('Error handling typing indicator:', err);
+        if (callback && typeof callback === 'function') {
+          callback({ status: "error", message: err.message });
+        }
+      }
+    });
+
+    // Add GET SHOP CONVERSATIONS handler
+    socket.on("getShopConversations", async ({ shopId }, callback) => {
+      try {
+        // Rate limiting
+        if (!checkRateLimit(user._id.toString(), 'getShopConversations')) {
+          return callback({ status: "error", message: "Rate limit exceeded." });
+        }
+
+        // Input validation
+        if (shopId && !SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(shopId)) {
+          return callback({ status: "error", message: "Invalid shop ID format" });
+        }
+
+        let query = { participants: user._id, type: "shop_chat" };
+        if (shopId) {
+          query.shop = shopId;
+        }
+
+        const conversations = await Conversation.find(query)
+          .populate("participants", "name email")
+          .populate("lastMessage")
+          .populate("shop", "name logoUrl")
+          .populate("product", "title name")
+          .sort({ updatedAt: -1 });
+
+        callback({ status: "success", conversations });
+        
+      } catch (err) {
+        console.error('Error getting shop conversations:', err);
         callback({ status: "error", message: err.message });
       }
     });
