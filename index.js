@@ -30,14 +30,14 @@ dotenv.config();
 const app = express();
 
 // Enable CORS for requests from frontend
-app.use(
-  cors({
-    //  origin: ["http://localhost:5173"], // Allow both frontend ports
-    origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
-    credentials: true, // Allow cookies and sessions
-  })
-);
+// app.use(
+//   cors({
+//     //  origin: ["http://localhost:5173"], // Allow both frontend ports
+//     origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
+//     credentials: true, // Allow cookies and sessions
+//   })
+// );
 
 app.use(express.json());
 app.use(
@@ -45,7 +45,7 @@ app.use(
     origin: (origin, callback) => {
       callback(null, origin || "*");
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     credentials: true,
   })
 );
