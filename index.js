@@ -6,7 +6,6 @@ import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import rateRoutes from "./routes/rateRoutes.js";
-
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
 import dotenv from "dotenv";
@@ -23,7 +22,7 @@ import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import fss from "fs";
-
+import calculatePriceRoutes from "./routes/goldPriceRoutes.js"; // Import the new route
 const GoogleAuthStrategy = oauth20.Strategy;
 
 dotenv.config();
@@ -197,6 +196,7 @@ app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/chatbot", chatbotRoutes);
+app.use("/price", calculatePriceRoutes);
 
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);

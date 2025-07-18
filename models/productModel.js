@@ -14,7 +14,7 @@ const productSchema = new mongoose.Schema(
     },
     karat: {
       type: String,
-      enum: ["18K", "21K", "24K"],
+      enum: ["18", "21", "24"],
       required: true,
     },
     weight: {
