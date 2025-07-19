@@ -19,7 +19,6 @@ import {
   authorizeRoles,
 } from "../middlewares/auth.js";
 import { trackProductClick } from "../controllers/productController.js";
-import { updatePrices } from "../controllers/goldPrice.js";
 const router = express.Router();
 
 router.post("/create", authenticateUser, requireSeller, upload, createProduct);
@@ -28,11 +27,11 @@ router.post("/favorite/:productId", authenticateUser, toggleFavorite);
 router.get("/favorite/:userId", authenticateUser, getAllFav);
 router.delete("/favorite/:productId", authenticateUser, toggleFavorite);
 
-router.get("/",updatePrices, getAllProducts);
+router.get("/", getAllProducts);
 
 router.get("/related", authenticateUser, getRelatedProducts);
 
-router.get("/shop/:shopId",updatePrices,  getProductsByShop);
+router.get("/shop/:shopId",  getProductsByShop);
 
 router.get("/:id",authenticateUser, getProduct);
 

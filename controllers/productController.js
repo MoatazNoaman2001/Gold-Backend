@@ -5,7 +5,7 @@ import AIProductDescriptionService from "../services/aiProductDescriptionService
 import UserBehavior from "../models/userBehaviorModel.js";
 import multer from "multer";
 import path from 'path';
-import { calculateTotalProductPrice } from "./goldPrice.js";
+import { calculateTotalProductPrice } from "./goldPriceController.js";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
