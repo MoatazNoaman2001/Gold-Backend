@@ -1,5 +1,5 @@
 import express from 'express';
-import { price_gram,calculateProductPrice} from '../controllers/goldPrice.js';
+import { price_gram,calculateProductPrice} from '../controllers/goldPriceController.js';
 const router = express.Router();   
 
 
