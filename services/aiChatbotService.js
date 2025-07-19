@@ -9,31 +9,26 @@ export async function getChatbotResponse(message, user) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   // Detect budget queries (e.g., "I have 5000 EGP and want a ring")
-  const budgetPattern =
-    /(budget|ميزانية|have|عندي|with|بـ|for|بـسعر|بسعر|بميزانية|بمبلغ|amount|مبلغ|price|سعر)[^\d]*(\d{2,})([^\d]+)?(ring|خاتم|bracelet|سوار|بangle|اسورة|necklace|قلادة|عقد|bridal|طقم|set|طقم عروس|bride|عروس)?/i;
+  const budgetPattern = /(budget|ميزانية|have|عندي|with|بـ|for|بـسعر|بسعر|بميزانية|بمبلغ|amount|مبلغ|price|سعر)[^\d]*(\d{2,})([^\d]+)?(ring|خاتم|bracelet|سوار|بangle|اسورة|necklace|قلادة|عقد|bridal|طقم|set|طقم عروس|bride|عروس)?/i;
   const match = message.match(budgetPattern);
 
-  if (match) {
-    // Extract budget and type
-    const budget = parseFloat(match[2]);
-    const type = match[4]?.toLowerCase() || "";
+  if (match || aboveMatch) {
+    let budget, type, isAbove;
+    if (aboveMatch) {
+      budget = parseFloat(aboveMatch[2]);
+      type = aboveMatch[4]?.toLowerCase() || "";
+      isAbove = true;
+    } else {
+      budget = parseFloat(match[2]);
+      type = match[4]?.toLowerCase() || "";
+      isAbove = false;
+    }
     // Map type to possible product categories
     const typeMap = {
       ring: ["ring", "خاتم"],
       bracelet: ["bracelet", "bangle", "سوار", "اسورة"],
       necklace: ["necklace", "قلادة", "عقد"],
-      bridal: [
-        "bridal",
-        "set",
-        "طقم",
-        "طقم عروس",
-        "bride",
-        "عروس",
-        "شبكه",
-        "شبكة",
-        "شبكه عروس",
-        "شبكة عروس",
-      ],
+      bridal: ["bridal", "set", "طقم", "طقم عروس", "bride", "عروس","شبكه","شبكة","شبكه عروس","شبكة عروس"],
     };
     let typeQuery = [];
     for (const key in typeMap) {
@@ -42,33 +37,37 @@ export async function getChatbotResponse(message, user) {
         break;
       }
     }
-    // Build query for products within budget and type
-    const query = {
-      price: { $lte: budget },
-    };
+    // Build query for products within/above budget and type
+    const priceFilter = isAbove ? { $gte: budget } : { $lte: budget };
+    const query = { price: priceFilter };
     if (typeQuery.length > 0) {
-      query.design_type = { $in: typeQuery };
+      query.$or = [
+        { type: { $in: typeQuery } },
+        { design_type: { $in: typeQuery } },
+        { category: { $in: typeQuery } },
+      ];
     }
     // Find products
-    const products = await Product.find(query).limit(10).populate({
-      path: "shop",
-      select: "name",
-    });
+    const products = await Product.find(query)
+      .limit(10)
+      .populate({
+        path: "shop",
+        select: "name",
+      });
     if (products.length > 0) {
       // Build friendly reply
       let reply = "Here are some pieces you might love 👇\n\n";
-      reply += products
-        .map((p) => {
-          const shopName = p.shop?.name || "N/A";
-          const productLink = `${
-            process.env.FRONTEND_URL || "https://yourstore.com"
-          }/product/${p._id}`;
-          return `• ${p.title} (${shopName})\n${productLink}`;
-        })
-        .join("\n\n");
+      reply += products.map(p => {
+        const shopName = p.shop?.name || "N/A";
+        const productLink = `${process.env.FRONTEND_URL || "https://yourstore.com"}/product/${p._id}`;
+        return `• ${p.title} (${shopName})\n${productLink}`;
+      }).join("\n\n");
       return reply;
     } else {
-      return "We couldn’t find something in that exact range right now 😔, but stay tuned! New items are added regularly 💛.";
+      let typeText = typeQuery.length > 0 ? typeQuery[0] : "products";
+      return isAbove
+        ? `Sorry, there are no ${typeText} above that price right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`
+        : `Sorry, there are no ${typeText} in that exact range right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`;
     }
   }
 
