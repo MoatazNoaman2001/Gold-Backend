@@ -38,20 +38,19 @@ const app = express();
 //     credentials: true, // Allow cookies and sessions
 //   })
 // );
-// import cron from 'node-cron';
-// import { refreshProductPrices } from './controllers/goldPriceController.js';
-// Temporarily disabled cron job
+import cron from 'node-cron';
+import { refreshProductPrices } from './controllers/goldPriceController.js';
 
-// // Update prices every 30 minutes
-// cron.schedule('*/3 * * * *', async () => {
-//     console.log('Running scheduled price update...');
-//     try {
-//         await refreshProductPrices();
-//         console.log('Scheduled price update completed');
-//     } catch (error) {
-//         console.error('Scheduled price update failed:', error);
-//     }
-// });
+// Update prices every 30 minutes
+cron.schedule('*/30 * * * *', async () => {
+    console.log('Running scheduled price update...');
+    try {
+        await refreshProductPrices();
+        console.log('Scheduled price update completed');
+    } catch (error) {
+        console.error('Scheduled price update failed:', error);
+    }
+});
 app.use(express.json());
 app.use(
   cors({
