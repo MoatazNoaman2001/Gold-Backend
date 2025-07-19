@@ -156,7 +156,8 @@ export const refreshProductPrices = async () => {
                 goldPrice: newPriceDetails.gold_price_per_gram_egp,
                 lastPriceUpdate: new Date()
             });
-
+            
+            console.log(`Updated price for product ${product._id}: ${product.price} ${newPriceDetails.total_price_egp}`);
         } catch (error) {
             console.error(`Failed to update price for product ${product._id}:`, error);
         }

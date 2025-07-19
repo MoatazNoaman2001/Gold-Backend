@@ -41,7 +41,7 @@ import cron from 'node-cron';
 import { refreshProductPrices } from './controllers/goldPriceController.js';
 
 // Update prices every 30 minutes
-cron.schedule('*/3 * * * *', async () => {
+cron.schedule('*/30 * * * *', async () => {
     console.log('Running scheduled price update...');
     try {
         await refreshProductPrices();
