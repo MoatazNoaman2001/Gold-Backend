@@ -8,6 +8,7 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import rateRoutes from "./routes/rateRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import dotenv from "dotenv";
 import cors from "cors"; // Add CORS import
 import session from "express-session";
@@ -37,19 +38,20 @@ const app = express();
 //     credentials: true, // Allow cookies and sessions
 //   })
 // );
-import cron from 'node-cron';
-import { refreshProductPrices } from './controllers/goldPriceController.js';
+// import cron from 'node-cron';
+// import { refreshProductPrices } from './controllers/goldPriceController.js';
+// Temporarily disabled cron job
 
-// Update prices every 30 minutes
-cron.schedule('*/30 * * * *', async () => {
-    console.log('Running scheduled price update...');
-    try {
-        await refreshProductPrices();
-        console.log('Scheduled price update completed');
-    } catch (error) {
-        console.error('Scheduled price update failed:', error);
-    }
-});
+// // Update prices every 30 minutes
+// cron.schedule('*/3 * * * *', async () => {
+//     console.log('Running scheduled price update...');
+//     try {
+//         await refreshProductPrices();
+//         console.log('Scheduled price update completed');
+//     } catch (error) {
+//         console.error('Scheduled price update failed:', error);
+//     }
+// });
 app.use(express.json());
 app.use(
   cors({
@@ -208,6 +210,7 @@ app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/chatbot", chatbotRoutes);
+app.use("/notifications", notificationRoutes);
 app.use("/price", calculatePriceRoutes);
 
 app.use(globalErrorHandler);

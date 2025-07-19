@@ -63,11 +63,15 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
     logoUrl: {
-      type: String
+      type: String,
     },
     images: {
-      type: [String]
-    }
+      type: [String],
+    },
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,

@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import Product from "../models/productModel.js";
 import Shop from "../models/shopModel.js";
 import User from "../models/userModel.js";
+import ShopRating from "../models/shopRatingModel.js";
 
 export async function getChatbotResponse(message, user) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -11,10 +12,17 @@ export async function getChatbotResponse(message, user) {
   const budgetPattern = /(budget|ميزانية|have|عندي|with|بـ|for|بـسعر|بسعر|بميزانية|بمبلغ|amount|مبلغ|price|سعر)[^\d]*(\d{2,})([^\d]+)?(ring|خاتم|bracelet|سوار|بangle|اسورة|necklace|قلادة|عقد|bridal|طقم|set|طقم عروس|bride|عروس)?/i;
   const match = message.match(budgetPattern);
 
-  if (match) {
-    // Extract budget and type
-    const budget = parseFloat(match[2]);
-    const type = match[4]?.toLowerCase() || "";
+  if (match || aboveMatch) {
+    let budget, type, isAbove;
+    if (aboveMatch) {
+      budget = parseFloat(aboveMatch[2]);
+      type = aboveMatch[4]?.toLowerCase() || "";
+      isAbove = true;
+    } else {
+      budget = parseFloat(match[2]);
+      type = match[4]?.toLowerCase() || "";
+      isAbove = false;
+    }
     // Map type to possible product categories
     const typeMap = {
       ring: ["ring", "خاتم"],
@@ -24,17 +32,20 @@ export async function getChatbotResponse(message, user) {
     };
     let typeQuery = [];
     for (const key in typeMap) {
-      if (typeMap[key].some(t => type.includes(t))) {
+      if (typeMap[key].some((t) => type.includes(t))) {
         typeQuery = typeMap[key];
         break;
       }
     }
-    // Build query for products within budget and type
-    const query = {
-      price: { $lte: budget },
-    };
+    // Build query for products within/above budget and type
+    const priceFilter = isAbove ? { $gte: budget } : { $lte: budget };
+    const query = { price: priceFilter };
     if (typeQuery.length > 0) {
-      query.design_type = { $in: typeQuery };
+      query.$or = [
+        { type: { $in: typeQuery } },
+        { design_type: { $in: typeQuery } },
+        { category: { $in: typeQuery } },
+      ];
     }
     // Find products
     const products = await Product.find(query)
@@ -53,12 +64,16 @@ export async function getChatbotResponse(message, user) {
       }).join("\n\n");
       return reply;
     } else {
-      return "We couldn’t find something in that exact range right now 😔, but stay tuned! New items are added regularly 💛.";
+      let typeText = typeQuery.length > 0 ? typeQuery[0] : "products";
+      return isAbove
+        ? `Sorry, there are no ${typeText} above that price right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`
+        : `Sorry, there are no ${typeText} in that exact range right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`;
     }
   }
 
   // 1. Check if the query is likely database-related
-  const dbRelatedPatterns = /product|منتج|products|المنتجات|shop|store|متجر|محل|shops|stores|المتاجر|المحلات|owner|مالك|بائع|seller|admin|user|مستخدم|properties|خصائص|مواصفات|count|عدد|name|اسم/i;
+  const dbRelatedPatterns =
+    /product|منتج|products|المنتجات|shop|store|متجر|محل|shops|stores|المتاجر|المحلات|owner|مالك|بائع|seller|admin|user|مستخدم|properties|خصائص|مواصفات|count|عدد|name|اسم/i;
   const isDbRelated = dbRelatedPatterns.test(message);
 
   let context = "";
@@ -70,7 +85,7 @@ export async function getChatbotResponse(message, user) {
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 5)
-      .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) // Escape special chars
+      .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) // Escape special chars
       .join("|");
 
     // 3. Build context only if keywords are present
@@ -94,7 +109,7 @@ export async function getChatbotResponse(message, user) {
       if (products.length > 0) {
         contextParts.push(
           products
-            .map(p => {
+            .map((p) => {
               const shopName = p.shop?.name || "N/A";
               const ownerName = p.shop?.owner?.name || "N/A";
               const ownerEmail = p.shop?.owner?.email || "N/A";
@@ -105,7 +120,11 @@ export async function getChatbotResponse(message, user) {
       }
 
       // Shops
-      if (/shop|store|shops|stores|متجر|محل|number|count|owner|مالك|اسم المتجر|اسم المحل|اسم البائع/i.test(message)) {
+      if (
+        /shop|store|shops|stores|متجر|محل|number|count|owner|مالك|اسم المتجر|اسم المحل|اسم البائع/i.test(
+          message
+        )
+      ) {
         const shopCount = await Shop.countDocuments();
         const shops = await Shop.find({})
           .populate("owner", "name email")
@@ -114,19 +133,31 @@ export async function getChatbotResponse(message, user) {
         if (shops.length > 0) {
           contextParts.push(
             `Shops: ${shops
-              .map(s => `${s.name} (Owner: ${s.owner?.name || "N/A"}, Email: ${s.owner?.email || "N/A"})`)
+              .map(
+                (s) =>
+                  `${s.name} (Owner: ${s.owner?.name || "N/A"}, Email: ${
+                    s.owner?.email || "N/A"
+                  })`
+              )
               .join("; ")}`
           );
         }
       }
 
       // Owners
-      if (/owner|مالك|بائع|seller|admin|user|مستخدم|اسم البائع|اسم المالك/i.test(message)) {
-        const owners = await User.find({}, { name: 1, email: 1, role: 1 }).limit(10);
+      if (
+        /owner|مالك|بائع|seller|admin|user|مستخدم|اسم البائع|اسم المالك/i.test(
+          message
+        )
+      ) {
+        const owners = await User.find(
+          {},
+          { name: 1, email: 1, role: 1 }
+        ).limit(10);
         if (owners.length > 0) {
           contextParts.push(
             `Owners: ${owners
-              .map(o => `${o.name} (${o.role}, ${o.email})`)
+              .map((o) => `${o.name} (${o.role}, ${o.email})`)
               .join("; ")}`
           );
         }
@@ -134,8 +165,8 @@ export async function getChatbotResponse(message, user) {
 
       // Products by shop
       const allShops = await Shop.find({}, { name: 1 });
-      const matchedShop = allShops.find(shop =>
-        shop.name && new RegExp(shop.name, "i").test(message)
+      const matchedShop = allShops.find(
+        (shop) => shop.name && new RegExp(shop.name, "i").test(message)
       );
       if (matchedShop) {
         const shopProducts = await Product.find({ shop: matchedShop._id })
@@ -149,7 +180,7 @@ export async function getChatbotResponse(message, user) {
         if (shopProducts.length > 0) {
           contextParts.push(
             shopProducts
-              .map(p => {
+              .map((p) => {
                 const shopName = p.shop?.name || "N/A";
                 const ownerName = p.shop?.owner?.name || "N/A";
                 const ownerEmail = p.shop?.owner?.email || "N/A";
