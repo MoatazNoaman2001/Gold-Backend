@@ -11,6 +11,8 @@ export async function getChatbotResponse(message, user) {
   // Detect budget queries (e.g., "I have 5000 EGP and want a ring")
   const budgetPattern = /(budget|ميزانية|have|عندي|with|بـ|for|بـسعر|بسعر|بميزانية|بمبلغ|amount|مبلغ|price|سعر)[^\d]*(\d{2,})([^\d]+)?(ring|خاتم|bracelet|سوار|بangle|اسورة|necklace|قلادة|عقد|bridal|طقم|set|طقم عروس|bride|عروس)?/i;
   const match = message.match(budgetPattern);
+  const abovePattern = /(above|اكتر من|اكثر من|فوق|فوق سعر|more than)[^\d]*(\d{2,})([^\d]+)?(ring|خاتم|bracelet|سوار|bangle|اسورة|necklace|قلادة|عقد|bridal|طقم|set|طقم عروس|bride|عروس)?/i;
+  const aboveMatch = message.match(abovePattern);
 
   if (match || aboveMatch) {
     let budget, type, isAbove;
@@ -28,7 +30,7 @@ export async function getChatbotResponse(message, user) {
       ring: ["ring", "خاتم"],
       bracelet: ["bracelet", "bangle", "سوار", "اسورة"],
       necklace: ["necklace", "قلادة", "عقد"],
-      bridal: ["bridal", "set", "طقم", "طقم عروس", "bride", "عروس","شبكه","شبكة","شبكه عروس","شبكة عروس"],
+      bridal: ["bridal", "set", "طقم", "طقم عروس", "bride", "عروس", "شبكه", "شبكة", "شبكه عروس", "شبكة عروس"],
     };
     let typeQuery = [];
     for (const key in typeMap) {
@@ -135,8 +137,7 @@ export async function getChatbotResponse(message, user) {
             `Shops: ${shops
               .map(
                 (s) =>
-                  `${s.name} (Owner: ${s.owner?.name || "N/A"}, Email: ${
-                    s.owner?.email || "N/A"
+                  `${s.name} (Owner: ${s.owner?.name || "N/A"}, Email: ${s.owner?.email || "N/A"
                   })`
               )
               .join("; ")}`
