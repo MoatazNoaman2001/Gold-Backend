@@ -74,6 +74,11 @@ const userSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
         select: false
+    },
+    paid: {
+        type: Boolean,
+        default: false,
+        // Only relevant for sellers
     }
 }, {
     timestamps: true,
