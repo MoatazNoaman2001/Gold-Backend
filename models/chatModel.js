@@ -125,7 +125,7 @@ messageSchema.index({ sender: 1 });
 messageSchema.index({ receiver: 1, read: 1 });
 
 // Pre-save middleware to update conversation's lastMessage and unread count
-messageSchema.pre('save', async function(next) {
+messageSchema.pre('save', async function (next) {
   if (this.isNew) {
     try {
       await mongoose.model('Conversation').findByIdAndUpdate(
@@ -153,11 +153,11 @@ messageSchema.pre('save', async function(next) {
 });
 
 // Post-save middleware to mark message as read when read field is updated
-messageSchema.post('findOneAndUpdate', async function(doc) {
+messageSchema.post('findOneAndUpdate', async function (doc) {
   if (doc && doc.read && !doc.readAt) {
     doc.readAt = new Date();
     await doc.save();
-    
+
     // Decrease unread count
     if (doc.receiver) {
       await mongoose.model('Conversation').findByIdAndUpdate(
@@ -171,7 +171,7 @@ messageSchema.post('findOneAndUpdate', async function(doc) {
 });
 
 // Virtual for formatted creation time
-messageSchema.virtual('formattedTime').get(function() {
+messageSchema.virtual('formattedTime').get(function () {
   return this.createdAt.toLocaleTimeString('ar-EG', {
     hour: '2-digit',
     minute: '2-digit'
@@ -179,7 +179,7 @@ messageSchema.virtual('formattedTime').get(function() {
 });
 
 // Virtual for formatted date
-messageSchema.virtual('formattedDate').get(function() {
+messageSchema.virtual('formattedDate').get(function () {
   const date = this.createdAt;
   const today = new Date();
   const yesterday = new Date(today);
@@ -195,7 +195,7 @@ messageSchema.virtual('formattedDate').get(function() {
 });
 
 // Static method to get messages with pagination
-messageSchema.statics.getMessagesPaginated = function(conversationId, limit = 50, skip = 0) {
+messageSchema.statics.getMessagesPaginated = function (conversationId, limit = 50, skip = 0) {
   return this.find({ conversation: conversationId })
     .populate('sender', 'name email avatar')
     .populate('receiver', 'name email avatar')
@@ -205,22 +205,22 @@ messageSchema.statics.getMessagesPaginated = function(conversationId, limit = 50
 };
 
 // Static method to mark all messages as read
-messageSchema.statics.markAllAsRead = function(conversationId, userId) {
+messageSchema.statics.markAllAsRead = function (conversationId, userId) {
   return this.updateMany(
-    { 
-      conversation: conversationId, 
-      receiver: userId, 
-      read: false 
+    {
+      conversation: conversationId,
+      receiver: userId,
+      read: false
     },
-    { 
-      read: true, 
-      readAt: new Date() 
+    {
+      read: true,
+      readAt: new Date()
     }
   );
 };
 
 // Instance method to mark message as read
-messageSchema.methods.markAsRead = function() {
+messageSchema.methods.markAsRead = function () {
   if (!this.read) {
     this.read = true;
     this.readAt = new Date();
@@ -230,7 +230,7 @@ messageSchema.methods.markAsRead = function() {
 };
 
 // Static method for conversation statistics
-conversationSchema.statics.getShopConversationStats = function(shopId) {
+conversationSchema.statics.getShopConversationStats = function (shopId) {
   return this.aggregate([
     { $match: { shop: mongoose.Types.ObjectId(shopId), type: 'shop_chat' } },
     {
@@ -257,12 +257,12 @@ conversationSchema.statics.getShopConversationStats = function(shopId) {
 };
 
 // Instance method to get unread count for user
-conversationSchema.methods.getUnreadCountForUser = function(userId) {
+conversationSchema.methods.getUnreadCountForUser = function (userId) {
   return this.unreadCount.get(userId.toString()) || 0;
 };
 
 // Instance method to reset unread count for user
-conversationSchema.methods.resetUnreadCountForUser = function(userId) {
+conversationSchema.methods.resetUnreadCountForUser = function (userId) {
   this.unreadCount.set(userId.toString(), 0);
   return this.save();
 };
@@ -321,11 +321,11 @@ export const ChatHelpers = {
   // Get conversation statistics
   getConversationStats: async (conversationId) => {
     const messages = await Message.countDocuments({ conversation: conversationId });
-    const unreadMessages = await Message.countDocuments({ 
-      conversation: conversationId, 
-      read: false 
+    const unreadMessages = await Message.countDocuments({
+      conversation: conversationId,
+      read: false
     });
-    
+
     return { messages, unreadMessages };
   }
 };
