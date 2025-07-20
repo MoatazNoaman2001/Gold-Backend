@@ -47,14 +47,25 @@ export const addAvailableTime = catchAsync(async (req, res) => {
 
 export const getAvailableTimesForShop = catchAsync(async (req, res) => {
   const { shopId } = req.params;
-  const { date } = req.query; // Optional date filter
+  const { date, includeBooked } = req.query; // Optional date filter and includeBooked flag
 
-  console.log("Getting available times for shop:", shopId, "date:", date);
+  console.log(
+    "Getting times for shop:",
+    shopId,
+    "date:",
+    date,
+    "includeBooked:",
+    includeBooked
+  );
 
   let query = {
     shop: shopId,
-    isBooked: false,
   };
+
+  // If includeBooked is not true, only get available times
+  if (includeBooked !== "true") {
+    query.isBooked = false;
+  }
 
   // If date is provided, filter by that date, otherwise get future dates
   if (date) {
@@ -67,15 +78,19 @@ export const getAvailableTimesForShop = catchAsync(async (req, res) => {
       $lt: nextDay,
     };
   } else {
-    // Get all future available times
+    // Get all future times
     query.date = { $gte: new Date() };
   }
 
   const times = await BookingTime.find(query)
     .populate("shop", "name")
+    .populate("user", "name email phone") // Populate user info for booked times
     .sort({ date: 1, time: 1 });
 
-  console.log("Found available times:", times.length);
+  console.log(
+    `Found ${includeBooked === "true" ? "all" : "available"} times:`,
+    times.length
+  );
 
   res.status(200).json({
     status: "success",

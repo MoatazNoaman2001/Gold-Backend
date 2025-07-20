@@ -5,7 +5,7 @@ import AIProductDescriptionService from "../services/aiProductDescriptionService
 import UserBehavior from "../models/userBehaviorModel.js";
 import multer from "multer";
 import path from 'path';
-
+import { calculateTotalProductPrice } from "./goldPriceController.js";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   console.log(JSON.stringify(file));
-  
+
   const filetypes = /jpeg|jpg|png|webp/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = filetypes.test(file.mimetype);
@@ -44,9 +44,9 @@ export const upload = multer({
 
 export const createProduct = catchAsync(async (req, res) => {
   let productData = req.body;
-  let {logo , images} = req.files || {};
+  let { logo, images } = req.files || {};
   let { title, description, price, karat, weight, design_type, category, images_urls, shop } = productData;
-  
+
   // Validate design_type
   const validDesignTypes = [
     "rings",
@@ -70,25 +70,27 @@ export const createProduct = catchAsync(async (req, res) => {
   }
   console.log("Incoming productData:", productData);
 
- if (!description){
-  let aiDescription; // Declare here
-
-  try {
-    // Initialize AI service with API key
-    const aiService = new AIProductDescriptionService(
-      process.env.OPENAI_API_KEY
-    );
-    // Generate AI-based product description
-    aiDescription = await aiService.generateDescription(productData);
-  } catch (error) {
-    console.error("Error generating AI description:", error);
-    return res.status(500).json({
-      status: "fail",
-      message: "Failed to generate AI description",
-    });
+  if (!description) {
+    let aiDescription;
+    try {
+      // Initialize AI service with API key
+      const aiService = new AIProductDescriptionService(
+        process.env.OPENAI_API_KEY
+      );
+      // Generate AI-based product description
+      aiDescription = await aiService.generateDescription(productData);
+    } catch (error) {
+      console.error("Error generating AI description:", error);
+      return res.status(500).json({
+        status: "fail",
+        message: "Failed to generate AI description",
+      });
+    }
+    description = aiDescription; // Assign AI-generated description
   }
-  description = aiDescription; // Assign AI-generated description
- }
+  let productPrice = await calculateTotalProductPrice(karat, weight, 0);
+  price = productPrice.total_price_egp;
+
   const newProduct = new Product({
     title,
     description,
@@ -104,43 +106,14 @@ export const createProduct = catchAsync(async (req, res) => {
   });
 
   const saveProduct = await newProduct.save();
-  console.log("✅ Product created successfully:", saveProduct.title);
+  console.log("Product created successfully:", saveProduct.title);
 
   res.status(201).json({
     status: "success",
     message: "Product created successfully",
     data: saveProduct,
   });
-});
-
-// export const getAllProducts = catchAsync(async (req, res) => {
-//   let products;
-//   const { shopId } = req.query;
-
-//   if (shopId) {
-//     products = await Product.find({ shop: shopId }).populate(
-//       "shop",
-//       "name owner isApproved"
-//     );
-//   }
-//   else if (req.user && req.user.role === "seller") {
-//     const Shop = (await import("../models/shopModel.js")).default;
-//     const userShops = await Shop.find({ owner: req.user._id });
-//     const shopIds = userShops.map((shop) => shop._id);
-
-//     products = await Product.find({ shop: { $in: shopIds } }).populate(
-//       "shop",
-//       "name owner"
-//     );
-//   }
-//   else {
-//     products = await Product.find().populate("shop", "name owner isApproved");
-//   }
-
-//   res
-//     .status(200)
-//     .json({ status: "success", length: products.length, data: products });
-// });
+})
 
 export const getAllProducts = catchAsync(async (req, res) => {
   let products;
@@ -234,20 +207,20 @@ export const getProduct = catchAsync(async (req, res) => {
   const product = await Product.findById(id).populate("shop", "name");
 
   const userId = req.user._id;
-  
-  if (!userId){
+
+  if (!userId) {
     return res.status(400).json({
       message: "user must be authed"
     })
   }
-  
+
   // Check if the favorite already exists
   const existingFavorite = await Favorite.findOne({
     user: userId,
     product: product._id,
   });
-  
-  if (existingFavorite){
+
+  if (existingFavorite) {
     product.isFav = true;
   }
   if (!product) {
@@ -286,7 +259,8 @@ export const getProductsByShop = catchAsync(async (req, res) => {
 
 export const updateProduct = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { design_type, category } = req.body;
+  let productData = req.body;
+  let { title, description, price, karat, weight, design_type, category, images_urls, shop } = productData;
 
   // Validate design_type if provided
   const validDesignTypes = [
@@ -322,8 +296,31 @@ export const updateProduct = catchAsync(async (req, res) => {
   if (design_type && !category) {
     req.body.category = design_type;
   }
+  if (!description) {
+    let aiDescription;
+    try {
+      // Initialize AI service with API key
+      const aiService = new AIProductDescriptionService(
+        process.env.OPENAI_API_KEY
+      );
+      // Generate AI-based product description
+      aiDescription = await aiService.generateDescription(productData);
+    } catch (error) {
+      console.error("Error generating AI description:", error);
+      return res.status(500).json({
+        status: "fail",
+        message: "Failed to generate AI description",
+      });
+    }
+    description = aiDescription; // Assign AI-generated description
+  }
+     console.log(" product with data:", price);
 
-  const updatedProduct = await Product.findByIdAndUpdate(id, req.body, {
+  let productPrice = await calculateTotalProductPrice(karat, weight, 0);
+  productData.price = productPrice.total_price_egp;
+   console.log("Updating product with data:", price);
+   console.log("Product data before update:", productData);
+  const updatedProduct = await Product.findByIdAndUpdate(id, productData, {
     new: true,
     runValidators: true,
   });
@@ -361,7 +358,7 @@ export const getAllFav = catchAsync(async (req, res) => {
 export const toggleFavorite = catchAsync(async (req, res) => {
   const { productId } = req.params;
   const userId = req.user._id;
-  
+
   // Check if the favorite already exists
   const existingFavorite = await Favorite.findOne({
     user: userId,
@@ -371,7 +368,7 @@ export const toggleFavorite = catchAsync(async (req, res) => {
   if (existingFavorite) {
     // If exists, remove it
     await Favorite.findByIdAndDelete(existingFavorite._id);
-    
+
     return res.status(200).json({
       status: "Removed",
       message: "Product removed from favorites",

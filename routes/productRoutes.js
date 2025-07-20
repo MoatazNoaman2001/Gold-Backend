@@ -19,7 +19,6 @@ import {
   authorizeRoles,
 } from "../middlewares/auth.js";
 import { trackProductClick } from "../controllers/productController.js";
-
 const router = express.Router();
 
 router.post("/create", authenticateUser, requireSeller, upload, createProduct);
@@ -32,7 +31,7 @@ router.get("/", getAllProducts);
 
 router.get("/related", authenticateUser, getRelatedProducts);
 
-router.get("/shop/:shopId", getProductsByShop);
+router.get("/shop/:shopId",  getProductsByShop);
 
 router.get("/:id",authenticateUser, getProduct);
 

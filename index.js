@@ -6,9 +6,9 @@ import productRoutes from "./routes/productRoutes.js";
 import userRoutes from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import rateRoutes from "./routes/rateRoutes.js";
-
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import dotenv from "dotenv";
 import cors from "cors"; // Add CORS import
 import session from "express-session";
@@ -23,29 +23,41 @@ import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import fss from "fs";
-
+import calculatePriceRoutes from "./routes/goldPriceRoutes.js"; // Import the new route
 const GoogleAuthStrategy = oauth20.Strategy;
 
 dotenv.config();
 const app = express();
 
 // Enable CORS for requests from frontend
-app.use(
-  cors({
-    //  origin: ["http://localhost:5173"], // Allow both frontend ports
-    origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
-    credentials: true, // Allow cookies and sessions
-  })
-);
+// app.use(
+//   cors({
+//     //  origin: ["http://localhost:5173"], // Allow both frontend ports
+//     origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
+//     credentials: true, // Allow cookies and sessions
+//   })
+// );
+import cron from 'node-cron';
+import { refreshProductPrices } from './controllers/goldPriceController.js';
 
+// Update prices every 30 minutes
+cron.schedule('*/30 * * * *', async () => {
+    console.log('Running scheduled price update...');
+    try {
+        await refreshProductPrices();
+        console.log('Scheduled price update completed');
+    } catch (error) {
+        console.error('Scheduled price update failed:', error);
+    }
+});
 app.use(express.json());
 app.use(
   cors({
     origin: (origin, callback) => {
       callback(null, origin || "*");
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     credentials: true,
   })
 );
@@ -197,6 +209,8 @@ app.use("/booking", bookingRoutes);
 app.use("/rate", rateRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/chatbot", chatbotRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/price", calculatePriceRoutes);
 
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);
