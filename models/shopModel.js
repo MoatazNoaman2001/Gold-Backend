@@ -54,8 +54,12 @@ const shopSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        required: false, // Make it optional
+        required: false, 
       },
+    },
+    commercialRecord: {
+      type: String, // PDF file URL
+      required: [true, "سجل تجاري PDF مطلوب"],
     },
     
   },

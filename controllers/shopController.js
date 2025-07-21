@@ -5,8 +5,12 @@ import path from 'path';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/shop-images/");
-  },
+  if (file.fieldname === 'commercialRecord') {
+    cb(null, 'uploads/commercial-records/');
+  } else {
+    cb(null, 'uploads/shop-images/');
+  }
+},
   filename: (req, file, cb) => {
     const sanitizedFilename = file.originalname
       .replace(/\s+/g, '-')
@@ -18,16 +22,32 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   console.log(JSON.stringify(file));
-  
-  const filetypes = /jpeg|jpg|png|webp/;
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
 
-  if (extname && mimetype) {
-    return cb(null, true);
+  const imageTypes = /jpeg|jpg|png|webp/;
+  const pdfType = /pdf/;
+
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = file.mimetype;
+
+  if (file.fieldname === "commercialRecord") {
+    if (pdfType.test(ext) && mime === "application/pdf") {
+      return cb(null, true);
+    } else {
+      return cb(new Error("فقط ملفات PDF مسموحة للسجل التجاري"));
+    }
   }
-  cb(new Error("Only images (jpeg, jpg, png) are allowed: ", file.originalname));
+
+  if (file.fieldname === "logo" || file.fieldname === "images") {
+    if (imageTypes.test(ext) && imageTypes.test(mime)) {
+      return cb(null, true);
+    } else {
+      return cb(new Error("فقط الصور مسموحة (jpeg, jpg, png, webp)"));
+    }
+  }
+
+  cb(new Error("ملف غير مدعوم"));
 };
+
 
 export const upload = multer({
   storage,
@@ -36,23 +56,49 @@ export const upload = multer({
 }).fields([
   { name: "logo", maxCount: 1 },
   { name: "images", maxCount: 10 },
+  { name: "commercialRecord", maxCount: 1 }, // ✅ الجديد
 ]);
+
 
 export const createShop = async (req, res) => {
   try {
-
-    // Check if user already has a shop
     const existingShop = await Shop.findOne({ owner: req.user._id });
     if (existingShop) {
+      
       return res.status(400).json({
         status: 'error',
         message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
       });
     }
+  if (!req.files){
+    console.error("No files uploaded");
+    return res.status(400).json({
+      status: "error",
+      message: "يرجى تحميل الشعار والصور والسجل التجاري",
+    });
+  }
+  if (!req.body.name) {
+    return res.status(400).json({
+      status: "error",
+      message: "الاسم والسجل التجاري مطلوبان",
+    });
+  }
+  
+  if (!req.body.location) {
+    return res.status(400).json({
+      status: "error",
+      message: "الموقع مطلوب",  
+    });
+  }
+  if (!req.files.commercialRecord) {
+    return res.status(400).json({
+      status: "error",
+      message: "سجل تجاري PDF مطلوب",
+    });
+  }
+  
+    const { logo, images, commercialRecord } = req.files || {};
 
-    const { logo, images } = req.files || {};
-
-    // Parse location data if it exists
     let locationData = null;
     if (req.body.location) {
       try {
@@ -65,12 +111,14 @@ export const createShop = async (req, res) => {
     const shopData = {
       ...req.body,
       owner: req.user._id,
-      logoUrl: logo ? `${logo[0].filename}` : undefined,
-      images: images ? images.map(file => `${file.filename}`) : [],
-
+      logoUrl: logo ? logo[0].filename : undefined,
+      images: images ? images.map(file => file.filename) : [],
+      commercialRecord: commercialRecord ? commercialRecord[0].filename : undefined,
+      location: locationData,
     };
 
     const newShop = await Shop.create(shopData);
+
     res.status(201).json({
       status: "success",
       data: newShop,
@@ -83,6 +131,7 @@ export const createShop = async (req, res) => {
     });
   }
 };
+
 
 export const getAllShops = catchAsync(async (req, res) => {
   // 1) Parse query parameters
@@ -231,8 +280,9 @@ export const deleteShop = catchAsync(async (req, res) => {
 export const updateShop = catchAsync(async (req, res) => {
   const { id } = req.params;
 
-  // Parse location data if it exists and is a string
   let updateData = { ...req.body };
+
+  // Handle location parsing
   if (req.body.location && typeof req.body.location === 'string') {
     try {
       updateData.location = JSON.parse(req.body.location);
@@ -241,21 +291,39 @@ export const updateShop = catchAsync(async (req, res) => {
     }
   }
 
+  // Handle uploaded files
+  const { logo, images, commercialRecord } = req.files || {};
+
+  if (logo) {
+    updateData.logoUrl = logo[0].filename;
+  }
+
+  if (images) {
+    updateData.images = images.map(file => file.filename);
+  }
+
+  if (commercialRecord) {
+    updateData.commercialRecord = commercialRecord[0].filename;
+  }
+
   const updatedShop = await Shop.findByIdAndUpdate(id, updateData, {
     new: true,
     runValidators: true,
   }).populate("owner", "name email");
+
   if (!updatedShop) {
     return res.status(404).json({
       status: "fail",
       message: "Shop not found",
     });
   }
+
   res.status(200).json({
     status: "success",
     data: updatedShop,
   });
 });
+
 
 // Public endpoint to get approved shops without authentication
 export const getPublicShops = catchAsync(async (req, res) => {
