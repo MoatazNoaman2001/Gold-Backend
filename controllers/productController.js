@@ -247,7 +247,7 @@ export const getProductsByShop = catchAsync(async (req, res) => {
 
   const products = await Product.find({ shop: shopId }).populate(
     "shop",
-    "name owner isApproved"
+    "name owner isApproved logoUrl"
   );
 
   res.status(200).json({
