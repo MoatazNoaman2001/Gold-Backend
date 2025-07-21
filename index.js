@@ -201,6 +201,8 @@ app.use((req, res, next) => {
   next();
 });
 
+
+
 app.use("/auth", authRoutes);
 app.use("/shop", shopRoutes);
 app.use("/product", productRoutes);
