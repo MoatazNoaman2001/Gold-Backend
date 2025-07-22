@@ -2,10 +2,15 @@ import { catchAsync } from "../utils/wrapperFunction.js";
 import Shop from "../models/shopModel.js";
 import multer from "multer";
 import path from 'path';
+import fs from 'fs';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/shop-images/");
+    if (file.fieldname === 'commercialRecord') {
+      cb(null, 'uploads/commercial-records/');
+    } else {
+      cb(null, 'uploads/shop-images/');
+    }
   },
   filename: (req, file, cb) => {
     const sanitizedFilename = file.originalname
@@ -17,16 +22,29 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  console.log(JSON.stringify(file));
-  
-  const filetypes = /jpeg|jpg|png|webp/;
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
+  const imageTypes = /jpeg|jpg|png|webp/;
+  const pdfType = /pdf/;
 
-  if (extname && mimetype) {
-    return cb(null, true);
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = file.mimetype;
+
+  if (file.fieldname === "commercialRecord") {
+    if (pdfType.test(ext) && mime === "application/pdf") {
+      return cb(null, true);
+    } else {
+      return cb(new Error("فقط ملفات PDF مسموحة للسجل التجاري"));
+    }
   }
-  cb(new Error("Only images (jpeg, jpg, png) are allowed: ", file.originalname));
+
+  if (file.fieldname === "logo" || file.fieldname === "images") {
+    if (imageTypes.test(ext) && imageTypes.test(mime)) {
+      return cb(null, true);
+    } else {
+      return cb(new Error("فقط الصور مسموحة (jpeg, jpg, png, webp)"));
+    }
+  }
+
+  cb(new Error("ملف غير مدعوم"));
 };
 
 export const upload = multer({
@@ -36,58 +54,95 @@ export const upload = multer({
 }).fields([
   { name: "logo", maxCount: 1 },
   { name: "images", maxCount: 10 },
+  { name: "commercialRecord", maxCount: 1 },
 ]);
+
+//  function to delete uploaded files
+const deleteUploadedFiles = (files) => {
+  if (!files) return;
+  Object.values(files).flat().forEach(file => {
+    fs.unlink(file.path, (err) => {
+      if (err) console.error(`❌ Error deleting file: ${file.path}`, err);
+      else console.log(`🗑️ Deleted file: ${file.path}`);
+    });
+  });
+};
 
 export const createShop = async (req, res) => {
   try {
-
-    // Check if user already has a shop
     const existingShop = await Shop.findOne({ owner: req.user._id });
     if (existingShop) {
+      deleteUploadedFiles(req.files);
       return res.status(400).json({
         status: 'error',
         message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
       });
     }
 
-    const { logo, images } = req.files || {};
+    if (!req.files || !req.files.logo || !req.files.commercialRecord) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "يرجى تحميل الشعار والصور والسجل التجاري",
+      });
+    }
 
-    // Parse location data if it exists
+    if (!req.body.name) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "الاسم مطلوب",
+      });
+    }
+
+    if (!req.body.location) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "الموقع مطلوب",
+      });
+    }
+
+    const { logo, images, commercialRecord } = req.files;
+
     let locationData = null;
-    if (req.body.location) {
-      try {
-        locationData = JSON.parse(req.body.location);
-      } catch (error) {
-        console.error('Error parsing location data:', error);
-      }
+    try {
+      locationData = JSON.parse(req.body.location);
+    } catch (error) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({ status: "error", message: "الموقع غير صالح" });
     }
 
     const shopData = {
       ...req.body,
       owner: req.user._id,
-      logoUrl: logo ? `${logo[0].filename}` : undefined,
-      images: images ? images.map(file => `${file.filename}`) : [],
-
+      logoUrl: logo[0].filename,
+      images: images ? images.map(file => file.filename) : [],
+      commercialRecord: commercialRecord[0].filename,
+      location: locationData,
     };
 
     const newShop = await Shop.create(shopData);
+
     res.status(201).json({
       status: "success",
       data: newShop,
     });
   } catch (error) {
-    console.error(`Error creating shop: ${error}`);
+    console.error(`❌ Error creating shop: ${error}`);
+    deleteUploadedFiles(req.files);
     res.status(500).json({
       status: "error",
-      message: "Failed to create shop",
+      message: "حدث خطأ أثناء إنشاء المحل",
     });
   }
 };
 
+
 export const getAllShops = catchAsync(async (req, res) => {
   // 1) Parse query parameters
   const { location, rating, specialties, sortBy } = req.query;
-  
+
   // 2) Initialize base query conditions
   let filter = {};
   let sortOption = '-createdAt'; // Default sort by newest
@@ -95,7 +150,7 @@ export const getAllShops = catchAsync(async (req, res) => {
   // 3) Apply role-based filtering
   if (req.user.role === "seller") {
     filter.owner = req.user._id;
-    
+
     // Location filter (search in city, area, or address)
     if (location) {
       filter.$or = [
@@ -104,26 +159,26 @@ export const getAllShops = catchAsync(async (req, res) => {
         { address: new RegExp(location, 'i') }
       ];
     }
-    
+
     // Rating filter
     if (rating) {
       filter.averageRating = { $gte: Number(rating) };
     }
-    
+
     // Specialties filter - "like" search instead of exact match
     if (specialties) {
-      const specialtiesArray = Array.isArray(specialties) 
-        ? specialties 
+      const specialtiesArray = Array.isArray(specialties)
+        ? specialties
         : specialties.split(',');
 
       // Create an array of regex conditions for each specialty
       const regexConditions = specialtiesArray.map(specialty => ({
-        specialties: { 
-          $regex: specialty.trim(), 
+        specialties: {
+          $regex: specialty.trim(),
           $options: 'i' // case insensitive
         }
       }));
-    
+
       // Use $or to match any of the specialties
       filter.$or = regexConditions;
     }
@@ -131,14 +186,14 @@ export const getAllShops = catchAsync(async (req, res) => {
     if (sortBy) {
       sortOption = sortBy;
     }
-  } 
+  }
   else if (req.user.role === "admin") {
     // Admins can see all shops without filters
-  } 
+  }
   else {
     // Regular users only see approved shops
     filter.isApproved = true;
-    
+
     // Optional: Apply public filters for regular users
     if (location) {
       filter.$or = [
@@ -149,18 +204,18 @@ export const getAllShops = catchAsync(async (req, res) => {
 
     // Specialties filter - "like" search instead of exact match
     if (specialties) {
-      const specialtiesArray = Array.isArray(specialties) 
-        ? specialties 
+      const specialtiesArray = Array.isArray(specialties)
+        ? specialties
         : specialties.split(',');
-      
+
       // Create an array of regex conditions for each specialty
       const regexConditions = specialtiesArray.map(specialty => ({
-        specialties: { 
-          $regex: specialty.trim(), 
+        specialties: {
+          $regex: specialty.trim(),
           $options: 'i' // case insensitive
         }
       }));
-    
+
       // Use $or to match any of the specialties
       filter.$or = regexConditions;
     }
@@ -174,11 +229,11 @@ export const getAllShops = catchAsync(async (req, res) => {
   // 5) Apply default values and transformations
   const shopsWithDefaults = shops.map((shop) => {
     const shopObj = shop.toObject();
-    
+
     return {
       ...shopObj,
-      address: shopObj.address || 
-               `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
+      address: shopObj.address ||
+        `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
       phone: shopObj.phone || shopObj.whatsapp || "01000000000",
       specialties: shopObj.specialties?.length ? shopObj.specialties : ["مجوهرات", "ذهب"],
       workingHours: shopObj.workingHours || "9:00 ص - 9:00 م",
@@ -231,8 +286,9 @@ export const deleteShop = catchAsync(async (req, res) => {
 export const updateShop = catchAsync(async (req, res) => {
   const { id } = req.params;
 
-  // Parse location data if it exists and is a string
   let updateData = { ...req.body };
+
+  // Handle location parsing
   if (req.body.location && typeof req.body.location === 'string') {
     try {
       updateData.location = JSON.parse(req.body.location);
@@ -241,21 +297,39 @@ export const updateShop = catchAsync(async (req, res) => {
     }
   }
 
+  // Handle uploaded files
+  const { logo, images, commercialRecord } = req.files || {};
+
+  if (logo) {
+    updateData.logoUrl = logo[0].filename;
+  }
+
+  if (images) {
+    updateData.images = images.map(file => file.filename);
+  }
+
+  if (commercialRecord) {
+    updateData.commercialRecord = commercialRecord[0].filename;
+  }
+
   const updatedShop = await Shop.findByIdAndUpdate(id, updateData, {
     new: true,
     runValidators: true,
   }).populate("owner", "name email");
+
   if (!updatedShop) {
     return res.status(404).json({
       status: "fail",
       message: "Shop not found",
     });
   }
+
   res.status(200).json({
     status: "success",
     data: updatedShop,
   });
 });
+
 
 // Public endpoint to get approved shops without authentication
 export const getPublicShops = catchAsync(async (req, res) => {
