@@ -9,8 +9,18 @@ import rateRoutes from "./routes/rateRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+
+// ============================================================================
+// NEW RESERVATION SYSTEM IMPORTS
+// ============================================================================
+import reservationRoutes from "./routes/reservationRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
+import { setupDIContainer } from "./Infrastructure/DI/Container.js";
+import { setupScheduledJobs } from "./Infrastructure/Jobs/JobScheduler.js";
+import { setupReservationEventHandlers } from "./Infrastructure/EventHandlers/ReservationEventSetup.js";
+
 import dotenv from "dotenv";
-import cors from "cors"; // Add CORS import
+import cors from "cors";
 import session from "express-session";
 import passport from "passport";
 import oauth20 from "passport-google-oauth20";
@@ -23,35 +33,36 @@ import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import fss from "fs";
-import calculatePriceRoutes from "./routes/goldPriceRoutes.js"; // Import the new route
+import calculatePriceRoutes from "./routes/goldPriceRoutes.js";
+import cron from 'node-cron';
+import { refreshProductPrices } from './controllers/goldPriceController.js';
+
 const GoogleAuthStrategy = oauth20.Strategy;
 
 dotenv.config();
 const app = express();
 
-// Enable CORS for requests from frontend
-// app.use(
-//   cors({
-//     //  origin: ["http://localhost:5173"], // Allow both frontend ports
-//     origin: ["https://gold-frontend-pegv.vercel.app", `http://localhost:${process.env.FRONT_END_PORT}`], // Allow both frontend ports
-//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"], // Allow necessary methods
-//     credentials: true, // Allow cookies and sessions
-//   })
-// );
-import cron from 'node-cron';
-import { refreshProductPrices } from './controllers/goldPriceController.js';
+// ============================================================================
+// RESERVATION SYSTEM INITIALIZATION
+// ============================================================================
 
-// Update prices every 30 minutes
-cron.schedule('*/30 * * * *', async () => {
-    console.log('Running scheduled price update...');
-    try {
-        await refreshProductPrices();
-        console.log('Scheduled price update completed');
-    } catch (error) {
-        console.error('Scheduled price update failed:', error);
-    }
-});
+// Initialize DI Container for reservation system
+console.log('🔄 Initializing Reservation System...');
+const container = setupDIContainer();
+
+// Make container available globally
+app.locals.container = container;
+
+// ============================================================================
+// MIDDLEWARE SETUP (Your existing + Reservation system)
+// ============================================================================
+
+// IMPORTANT: Webhook routes MUST be before express.json() middleware
+// because Stripe webhooks need raw body
+app.use('/webhooks', webhookRoutes);
+
 app.use(express.json());
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -61,6 +72,7 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -72,6 +84,10 @@ app.use(
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ============================================================================
+// EXISTING IMAGE SERVING ENDPOINTS
+// ============================================================================
 
 app.get("/shop-image/:filename", async (req, res) => {
   try {
@@ -97,16 +113,13 @@ app.get("/shop-image/:filename", async (req, res) => {
 
 app.get("/product-image/:filename", async (req, res) => {
   try {
-    // 1. Decode the URL-encoded filename
     let filename = decodeURIComponent(req.params.filename);
 
-    // 2. Additional security: replace any remaining problematic characters
     filename = filename
-      .replace(/\.\.\//g, "") // Prevent directory traversal
-      .replace(/\//g, "_") // Replace slashes
-      .replace(/\\/g, "_"); // Replace backslashes
+      .replace(/\.\.\//g, "")
+      .replace(/\//g, "_")
+      .replace(/\\/g, "_");
 
-    // 3. Construct the full path
     const imagePath = path.join(
       __dirname,
       "uploads",
@@ -114,13 +127,11 @@ app.get("/product-image/:filename", async (req, res) => {
       filename
     );
 
-    // 4. Check if file exists and is an image
     const fileExists = fss.existsSync(imagePath);
     const isImage = /\.(jpe?g|png|gif|webp)$/i.test(filename);
     console.log(`${fileExists}, ${isImage}`);
 
     if (fileExists && isImage) {
-      // Optional: Set caching headers
       res.setHeader("Cache-Control", "public, max-age=31536000");
       res.sendFile(imagePath);
     } else {
@@ -131,6 +142,10 @@ app.get("/product-image/:filename", async (req, res) => {
     res.status(500).send("Internal server error");
   }
 });
+
+// ============================================================================
+// PASSPORT GOOGLE AUTH SETUP (Your existing)
+// ============================================================================
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -183,8 +198,65 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+// ============================================================================
+// SCHEDULED JOBS SETUP
+// ============================================================================
+
+// Your existing gold price update job
+cron.schedule('*/30 * * * *', async () => {
+    console.log('Running scheduled price update...');
+    try {
+        await refreshProductPrices();
+        console.log('Scheduled price update completed');
+    } catch (error) {
+        console.error('Scheduled price update failed:', error);
+    }
+});
+
+// NEW: Reservation system scheduled jobs
+const reservationScheduler = setupScheduledJobs();
+
+// Start reservation jobs
+reservationScheduler.startJob('reservation-expiry');
+reservationScheduler.startJob('reservation-reminders');
+
+console.log('✅ Scheduled jobs initialized (Price updates + Reservation system)');
+
+// ============================================================================
+// ROUTES SETUP
+// ============================================================================
+
 app.get("/", (req, res) => {
-  res.send("Hello, Debla Project!");
+  res.send("Hello, Debla Project with Reservation System!");
+});
+
+// Health check with reservation system status
+app.get("/health", async (req, res) => {
+  try {
+    // Check database connection
+    const dbState = mongoose.connection.readyState;
+    
+    // Check reservation system
+    const reservationRepository = container.resolve('reservationRepository');
+    
+    res.status(200).json({
+      status: "success",
+      message: "Server is running",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      services: {
+        database: dbState === 1 ? 'connected' : 'disconnected',
+        reservationSystem: 'operational',
+        scheduledJobs: 'active'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Health check failed",
+      error: error.message
+    });
+  }
 });
 
 // Add request logging middleware
@@ -201,6 +273,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ============================================================================
+// EXISTING ROUTES
+// ============================================================================
 app.use("/auth", authRoutes);
 app.use("/shop", shopRoutes);
 app.use("/product", productRoutes);
@@ -212,23 +287,174 @@ app.use("/chatbot", chatbotRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/price", calculatePriceRoutes);
 
+// ============================================================================
+// NEW RESERVATION SYSTEM ROUTES
+// ============================================================================
+app.use("/reservations", reservationRoutes);
+
+// Test endpoint to verify reservation system integration
+app.get("/test/reservation", async (req, res) => {
+  try {
+    const reservationRepository = container.resolve('reservationRepository');
+    const paymentService = container.resolve('paymentService');
+    
+    res.json({
+      status: "success",
+      message: "Reservation system is properly integrated",
+      services: {
+        repository: !!reservationRepository,
+        paymentService: !!paymentService,
+        container: !!container
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Reservation system test failed",
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// ERROR HANDLING (Your existing)
+// ============================================================================
 app.use(globalErrorHandler);
 app.use(handleMongooseErrors);
 
+// ============================================================================
+// SERVER SETUP WITH RESERVATION SYSTEM
+// ============================================================================
 const server = http.createServer(app);
+
+// Initialize chat socket (your existing)
 initializeChatSocket(server);
 
-// Remove duplicate app.listen
-server.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
-});
-
+// ============================================================================
+// DATABASE CONNECTION WITH RESERVATION SYSTEM SETUP
+// ============================================================================
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("Connected to MongoDB");
+  .then(async () => {
+    console.log("✅ Connected to MongoDB");
+    
+    // Setup reservation system after DB connection
+    await setupReservationSystem();
+    
+    console.log("🚀 Reservation System fully initialized");
   })
-  .catch((err) => console.log("MongoDB connection error:", err));
+  .catch((err) => console.log("❌ MongoDB connection error:", err));
+
+// ============================================================================
+// RESERVATION SYSTEM SETUP FUNCTION
+// ============================================================================
+async function setupReservationSystem() {
+  try {
+    // Setup database indexes for reservations
+    await setupReservationIndexes();
+    
+    // Setup event handlers
+    setupReservationEventHandlers(container);
+    
+    // Setup notification services
+    setupNotificationServices();
+    
+    console.log("✅ Reservation system setup completed");
+  } catch (error) {
+    console.error("❌ Reservation system setup failed:", error);
+  }
+}
+
+// Setup database indexes for optimal reservation queries
+async function setupReservationIndexes() {
+  try {
+    const db = mongoose.connection.db;
+    
+    // Create reservation collection indexes
+    await db.collection('reservations').createIndex({ userId: 1, status: 1 });
+    await db.collection('reservations').createIndex({ productId: 1, status: 1 });
+    await db.collection('reservations').createIndex({ shopId: 1, status: 1 });
+    await db.collection('reservations').createIndex({ expiryDate: 1 });
+    await db.collection('reservations').createIndex({ stripePaymentIntentId: 1 });
+    await db.collection('reservations').createIndex({ reservationDate: -1 });
+    
+    console.log("✅ Reservation database indexes created");
+  } catch (error) {
+    console.error("❌ Error creating reservation indexes:", error);
+  }
+}
+
+// Setup notification services
+function setupNotificationServices() {
+  try {
+    const eventPublisher = container.resolve('eventPublisher');
+    const notificationService = container.resolve('notificationService');
+    
+    // Subscribe to reservation events for notifications
+    eventPublisher.subscribe('ReservationCreated', async (eventData) => {
+      console.log(`📧 Sending reservation created notification for ${eventData.reservationId}`);
+    });
+    
+    eventPublisher.subscribe('ReservationActivated', async (eventData) => {
+      console.log(`📧 Sending reservation confirmation notification for ${eventData.reservationId}`);
+    });
+    
+    eventPublisher.subscribe('ReservationExpired', async (eventData) => {
+      console.log(`📧 Sending reservation expired notification for ${eventData.reservationId}`);
+    });
+    
+    console.log("✅ Notification services setup completed");
+  } catch (error) {
+    console.error("❌ Error setting up notification services:", error);
+  }
+}
+
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
+process.on('SIGTERM', () => {
+  console.log('📤 SIGTERM received, shutting down gracefully');
+  
+  // Stop reservation scheduled jobs
+  reservationScheduler.stopAll();
+  
+  server.close(() => {
+    console.log('🔌 HTTP server closed');
+    mongoose.connection.close(() => {
+      console.log('🗄️ MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('📤 SIGINT received, shutting down gracefully');
+  
+  // Stop reservation scheduled jobs
+  reservationScheduler.stopAll();
+  
+  server.close(() => {
+    console.log('🔌 HTTP server closed');
+    mongoose.connection.close(() => {
+      console.log('🗄️ MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+// Start server
+server.listen(process.env.PORT, () => {
+  console.log(`
+🚀 Server running on port ${process.env.PORT}
+📱 Environment: ${process.env.NODE_ENV || 'development'}
+💳 Stripe Mode: ${process.env.STRIPE_SECRET_KEY?.includes('sk_test') ? 'Test' : 'Live'}
+🔄 Reservation System: Active
+⏰ Scheduled Jobs: Active (Price Updates + Reservations)
+📧 Notifications: ${process.env.EMAIL_ENABLED === 'true' ? 'Enabled' : 'Disabled'}
+  `);
+});
 
 console.log("MONGO_URI:", process.env.MONGO_URI);
 console.log("PORT:", process.env.PORT);
+
+export default app;

@@ -6,6 +6,9 @@ import UserBehavior from "../models/userBehaviorModel.js";
 import multer from "multer";
 import path from 'path';
 import { calculateTotalProductPrice } from "./goldPriceController.js";
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SCRETE);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -42,6 +45,85 @@ export const upload = multer({
   { name: "images", maxCount: 10 },
 ]);
 
+const createStripeProduct = async (productData, imageUrls = []) => {
+  try {
+    const stripeProduct = await stripe.products.create({
+      name: productData.title,
+      description: productData.description,
+      images: imageUrls,
+      metadata: {
+        karat: productData.karat?.toString() || '',
+        weight: productData.weight?.toString() || '',
+        design_type: productData.design_type || '',
+        category: productData.category || '',
+        shop: productData.shop?.toString() || '',
+        mongodb_id: ''
+      },
+    });
+
+    const stripePrice = await stripe.prices.create({
+      unit_amount: Math.round(productData.price * 100), 
+      currency: 'egp',
+      product: stripeProduct.id,
+    });
+
+    return {
+      stripeProductId: stripeProduct.id,
+      stripePriceId: stripePrice.id
+    };
+  } catch (error) {
+    console.error('Error creating Stripe product:', error);
+    throw error;
+  }
+};
+
+const updateStripeProduct = async (stripeProductId, productData, imageUrls = []) => {
+  try {
+    const updatedProduct = await stripe.products.update(stripeProductId, {
+      name: productData.title,
+      description: productData.description,
+      images: imageUrls,
+      metadata: {
+        karat: productData.karat?.toString() || '',
+        weight: productData.weight?.toString() || '',
+        design_type: productData.design_type || '',
+        category: productData.category || '',
+        shop: productData.shop?.toString() || '',
+        mongodb_id: productData.mongodb_id || ''
+      },
+    });
+
+    // Create new price (Stripe prices are immutable)
+    const newPrice = await stripe.prices.create({
+      unit_amount: Math.round(productData.price * 100),
+      currency: 'egp',
+      product: stripeProductId,
+    });
+
+    return {
+      stripeProductId: updatedProduct.id,
+      stripePriceId: newPrice.id
+    };
+  } catch (error) {
+    console.error('Error updating Stripe product:', error);
+    throw error;
+  }
+};
+
+const generateImageUrls = (baseUrl, logoFilename, imageFilenames = []) => {
+  const urls = [];
+  
+  if (logoFilename) {
+    urls.push(`${baseUrl}/uploads/product-images/${logoFilename}`);
+  }
+  
+  imageFilenames.forEach(filename => {
+    urls.push(`${baseUrl}/uploads/product-images/${filename}`);
+  });
+  
+  return urls;
+};
+
 export const createProduct = catchAsync(async (req, res) => {
   let productData = req.body;
   let { logo, images } = req.files || {};
@@ -68,16 +150,15 @@ export const createProduct = catchAsync(async (req, res) => {
       )}`,
     });
   }
+
   console.log("Incoming productData:", productData);
 
   if (!description) {
     let aiDescription;
     try {
-      // Initialize AI service with API key
       const aiService = new AIProductDescriptionService(
         process.env.OPENAI_API_KEY
       );
-      // Generate AI-based product description
       aiDescription = await aiService.generateDescription(productData);
     } catch (error) {
       console.error("Error generating AI description:", error);
@@ -86,10 +167,40 @@ export const createProduct = catchAsync(async (req, res) => {
         message: "Failed to generate AI description",
       });
     }
-    description = aiDescription; // Assign AI-generated description
+    description = aiDescription;
   }
+
   let productPrice = await calculateTotalProductPrice(karat, weight, 0);
   price = productPrice.total_price_egp;
+
+  // Prepare image URLs for Stripe
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const logoFilename = logo ? logo[0].filename : undefined;
+  const imageFilenames = images ? images.map(file => file.filename) : [];
+  const imageUrls = generateImageUrls(baseUrl, logoFilename, imageFilenames);
+
+  // Create product data with updated price
+  const updatedProductData = {
+    ...productData,
+    title,
+    description,
+    price,
+    design_type: design_type || "other",
+    category: category || design_type || "other",
+  };
+
+  let stripeData = {};
+  
+  try {
+    // Create Stripe product
+    stripeData = await createStripeProduct(updatedProductData, imageUrls);
+  } catch (error) {
+    console.error("Failed to create Stripe product:", error);
+    return res.status(500).json({
+      status: "fail",
+      message: "Failed to create product in Stripe",
+    });
+  }
 
   const newProduct = new Product({
     title,
@@ -101,11 +212,27 @@ export const createProduct = catchAsync(async (req, res) => {
     category: category || design_type || "other",
     images_urls: images_urls || [],
     shop,
-    logoUrl: logo ? logo[0].filename : undefined,
-    images: images ? images.map(file => `${file.filename}`) : [],
+    logoUrl: logoFilename,
+    images: imageFilenames,
+    stripeProductId: stripeData.stripeProductId,
+    stripePriceId: stripeData.stripePriceId,
   });
 
   const saveProduct = await newProduct.save();
+
+  // Update Stripe product metadata with MongoDB ID
+  try {
+    await stripe.products.update(stripeData.stripeProductId, {
+      metadata: {
+        ...updatedProductData,
+        mongodb_id: saveProduct._id.toString()
+      }
+    });
+  } catch (error) {
+    console.error("Failed to update Stripe product metadata:", error);
+    // Don't fail the entire operation for metadata update
+  }
+
   console.log("Product created successfully:", saveProduct.title);
 
   res.status(201).json({
@@ -113,7 +240,7 @@ export const createProduct = catchAsync(async (req, res) => {
     message: "Product created successfully",
     data: saveProduct,
   });
-})
+});
 
 export const getAllProducts = catchAsync(async (req, res) => {
   let products;
@@ -140,8 +267,6 @@ export const getAllProducts = catchAsync(async (req, res) => {
   if (karat) {
     filter.karat = Number(karat);
   }
-
-
 
   if (search) {
     filter.$or = [
@@ -294,16 +419,15 @@ export const updateProduct = catchAsync(async (req, res) => {
 
   // If design_type is updated, also update category if not provided
   if (design_type && !category) {
-    req.body.category = design_type;
+    productData.category = design_type;
   }
+
   if (!description) {
     let aiDescription;
     try {
-      // Initialize AI service with API key
       const aiService = new AIProductDescriptionService(
         process.env.OPENAI_API_KEY
       );
-      // Generate AI-based product description
       aiDescription = await aiService.generateDescription(productData);
     } catch (error) {
       console.error("Error generating AI description:", error);
@@ -312,14 +436,61 @@ export const updateProduct = catchAsync(async (req, res) => {
         message: "Failed to generate AI description",
       });
     }
-    description = aiDescription; // Assign AI-generated description
+    description = aiDescription;
   }
-     console.log(" product with data:", price);
 
   let productPrice = await calculateTotalProductPrice(karat, weight, 0);
   productData.price = productPrice.total_price_egp;
-   console.log("Updating product with data:", price);
-   console.log("Product data before update:", productData);
+
+  console.log("Updating product with data:", productData.price);
+
+  // Prepare image URLs for Stripe
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  const imageUrls = generateImageUrls(baseUrl, product.logoUrl, product.images);
+
+  // Update Stripe product if stripeProductId exists
+  if (product.stripeProductId) {
+    try {
+      const stripeData = await updateStripeProduct(
+        product.stripeProductId,
+        {
+          ...productData,
+          title: title || product.title,
+          description: description || product.description,
+          mongodb_id: product._id.toString()
+        },
+        imageUrls
+      );
+      
+      // Update stripePriceId with the new price
+      productData.stripePriceId = stripeData.stripePriceId;
+    } catch (error) {
+      console.error("Failed to update Stripe product:", error);
+      return res.status(500).json({
+        status: "fail",
+        message: "Failed to update product in Stripe",
+      });
+    }
+  } else {
+    // Create Stripe product if it doesn't exist
+    try {
+      const stripeData = await createStripeProduct({
+        ...productData,
+        title: title || product.title,
+        description: description || product.description,
+      }, imageUrls);
+      
+      productData.stripeProductId = stripeData.stripeProductId;
+      productData.stripePriceId = stripeData.stripePriceId;
+    } catch (error) {
+      console.error("Failed to create Stripe product:", error);
+      return res.status(500).json({
+        status: "fail",
+        message: "Failed to create product in Stripe",
+      });
+    }
+  }
+
   const updatedProduct = await Product.findByIdAndUpdate(id, productData, {
     new: true,
     runValidators: true,
@@ -333,15 +504,31 @@ export const updateProduct = catchAsync(async (req, res) => {
 
 export const deletedProduct = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const product = await Product.findByIdAndDelete(id);
+  const product = await Product.findById(id);
+  
   if (!product) {
     return res
       .status(404)
       .json({ status: "fail", message: "Product not found" });
   }
+
+  // Delete from Stripe if stripeProductId exists
+  if (product.stripeProductId) {
+    try {
+      await stripe.products.update(product.stripeProductId, {
+        active: false // Archive the product instead of deleting
+      });
+      console.log("Product archived in Stripe:", product.stripeProductId);
+    } catch (error) {
+      console.error("Failed to archive Stripe product:", error);
+      // Continue with MongoDB deletion even if Stripe fails
+    }
+  }
+
+  await Product.findByIdAndDelete(id);
+  
   res.status(200).json({ status: "success", message: "Product deleted" });
 });
-
 
 export const getAllFav = catchAsync(async (req, res) => {
   const { userId } = req.params;
@@ -355,6 +542,7 @@ export const getAllFav = catchAsync(async (req, res) => {
     data: { favorites },
   });
 });
+
 export const toggleFavorite = catchAsync(async (req, res) => {
   const { productId } = req.params;
   const userId = req.user._id;
@@ -388,6 +576,7 @@ export const toggleFavorite = catchAsync(async (req, res) => {
     });
   }
 });
+
 export const generateDescriptionVariations = catchAsync(async (req, res) => {
   const { productId } = req.params;
   // Check if productId is provided
@@ -472,6 +661,19 @@ export const regenerateDescription = catchAsync(async (req, res) => {
 
     // Update the product with the new description
     product.description = newDescription;
+    
+    // Update Stripe product description if stripeProductId exists
+    if (product.stripeProductId) {
+      try {
+        await stripe.products.update(product.stripeProductId, {
+          description: newDescription,
+        });
+      } catch (error) {
+        console.error("Failed to update Stripe product description:", error);
+        // Continue with MongoDB update even if Stripe fails
+      }
+    }
+    
     await product.save();
 
     res.status(200).json({
