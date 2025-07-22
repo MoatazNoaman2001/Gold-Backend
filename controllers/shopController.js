@@ -2,15 +2,16 @@ import { catchAsync } from "../utils/wrapperFunction.js";
 import Shop from "../models/shopModel.js";
 import multer from "multer";
 import path from 'path';
+import fs from 'fs';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-  if (file.fieldname === 'commercialRecord') {
-    cb(null, 'uploads/commercial-records/');
-  } else {
-    cb(null, 'uploads/shop-images/');
-  }
-},
+    if (file.fieldname === 'commercialRecord') {
+      cb(null, 'uploads/commercial-records/');
+    } else {
+      cb(null, 'uploads/shop-images/');
+    }
+  },
   filename: (req, file, cb) => {
     const sanitizedFilename = file.originalname
       .replace(/\s+/g, '-')
@@ -21,8 +22,6 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  console.log(JSON.stringify(file));
-
   const imageTypes = /jpeg|jpg|png|webp/;
   const pdfType = /pdf/;
 
@@ -48,7 +47,6 @@ const fileFilter = (req, file, cb) => {
   cb(new Error("ملف غير مدعوم"));
 };
 
-
 export const upload = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 },
@@ -56,64 +54,71 @@ export const upload = multer({
 }).fields([
   { name: "logo", maxCount: 1 },
   { name: "images", maxCount: 10 },
-  { name: "commercialRecord", maxCount: 1 }, // ✅ الجديد
+  { name: "commercialRecord", maxCount: 1 },
 ]);
 
+//  function to delete uploaded files
+const deleteUploadedFiles = (files) => {
+  if (!files) return;
+  Object.values(files).flat().forEach(file => {
+    fs.unlink(file.path, (err) => {
+      if (err) console.error(`❌ Error deleting file: ${file.path}`, err);
+      else console.log(`🗑️ Deleted file: ${file.path}`);
+    });
+  });
+};
 
 export const createShop = async (req, res) => {
   try {
     const existingShop = await Shop.findOne({ owner: req.user._id });
     if (existingShop) {
-      
+      deleteUploadedFiles(req.files);
       return res.status(400).json({
         status: 'error',
         message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
       });
     }
-  if (!req.files){
-    console.error("No files uploaded");
-    return res.status(400).json({
-      status: "error",
-      message: "يرجى تحميل الشعار والصور والسجل التجاري",
-    });
-  }
-  if (!req.body.name) {
-    return res.status(400).json({
-      status: "error",
-      message: "الاسم والسجل التجاري مطلوبان",
-    });
-  }
-  
-  if (!req.body.location) {
-    return res.status(400).json({
-      status: "error",
-      message: "الموقع مطلوب",  
-    });
-  }
-  if (!req.files.commercialRecord) {
-    return res.status(400).json({
-      status: "error",
-      message: "سجل تجاري PDF مطلوب",
-    });
-  }
-  
-    const { logo, images, commercialRecord } = req.files || {};
+
+    if (!req.files || !req.files.logo || !req.files.commercialRecord) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "يرجى تحميل الشعار والصور والسجل التجاري",
+      });
+    }
+
+    if (!req.body.name) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "الاسم مطلوب",
+      });
+    }
+
+    if (!req.body.location) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({
+        status: "error",
+        message: "الموقع مطلوب",
+      });
+    }
+
+    const { logo, images, commercialRecord } = req.files;
 
     let locationData = null;
-    if (req.body.location) {
-      try {
-        locationData = JSON.parse(req.body.location);
-      } catch (error) {
-        console.error('Error parsing location data:', error);
-      }
+    try {
+      locationData = JSON.parse(req.body.location);
+    } catch (error) {
+      deleteUploadedFiles(req.files);
+      return res.status(400).json({ status: "error", message: "الموقع غير صالح" });
     }
 
     const shopData = {
       ...req.body,
       owner: req.user._id,
-      logoUrl: logo ? logo[0].filename : undefined,
+      logoUrl: logo[0].filename,
       images: images ? images.map(file => file.filename) : [],
-      commercialRecord: commercialRecord ? commercialRecord[0].filename : undefined,
+      commercialRecord: commercialRecord[0].filename,
       location: locationData,
     };
 
@@ -124,10 +129,11 @@ export const createShop = async (req, res) => {
       data: newShop,
     });
   } catch (error) {
-    console.error(`Error creating shop: ${error}`);
+    console.error(`❌ Error creating shop: ${error}`);
+    deleteUploadedFiles(req.files);
     res.status(500).json({
       status: "error",
-      message: "Failed to create shop",
+      message: "حدث خطأ أثناء إنشاء المحل",
     });
   }
 };
@@ -136,7 +142,7 @@ export const createShop = async (req, res) => {
 export const getAllShops = catchAsync(async (req, res) => {
   // 1) Parse query parameters
   const { location, rating, specialties, sortBy } = req.query;
-  
+
   // 2) Initialize base query conditions
   let filter = {};
   let sortOption = '-createdAt'; // Default sort by newest
@@ -144,7 +150,7 @@ export const getAllShops = catchAsync(async (req, res) => {
   // 3) Apply role-based filtering
   if (req.user.role === "seller") {
     filter.owner = req.user._id;
-    
+
     // Location filter (search in city, area, or address)
     if (location) {
       filter.$or = [
@@ -153,26 +159,26 @@ export const getAllShops = catchAsync(async (req, res) => {
         { address: new RegExp(location, 'i') }
       ];
     }
-    
+
     // Rating filter
     if (rating) {
       filter.averageRating = { $gte: Number(rating) };
     }
-    
+
     // Specialties filter - "like" search instead of exact match
     if (specialties) {
-      const specialtiesArray = Array.isArray(specialties) 
-        ? specialties 
+      const specialtiesArray = Array.isArray(specialties)
+        ? specialties
         : specialties.split(',');
 
       // Create an array of regex conditions for each specialty
       const regexConditions = specialtiesArray.map(specialty => ({
-        specialties: { 
-          $regex: specialty.trim(), 
+        specialties: {
+          $regex: specialty.trim(),
           $options: 'i' // case insensitive
         }
       }));
-    
+
       // Use $or to match any of the specialties
       filter.$or = regexConditions;
     }
@@ -180,14 +186,14 @@ export const getAllShops = catchAsync(async (req, res) => {
     if (sortBy) {
       sortOption = sortBy;
     }
-  } 
+  }
   else if (req.user.role === "admin") {
     // Admins can see all shops without filters
-  } 
+  }
   else {
     // Regular users only see approved shops
     filter.isApproved = true;
-    
+
     // Optional: Apply public filters for regular users
     if (location) {
       filter.$or = [
@@ -198,18 +204,18 @@ export const getAllShops = catchAsync(async (req, res) => {
 
     // Specialties filter - "like" search instead of exact match
     if (specialties) {
-      const specialtiesArray = Array.isArray(specialties) 
-        ? specialties 
+      const specialtiesArray = Array.isArray(specialties)
+        ? specialties
         : specialties.split(',');
-      
+
       // Create an array of regex conditions for each specialty
       const regexConditions = specialtiesArray.map(specialty => ({
-        specialties: { 
-          $regex: specialty.trim(), 
+        specialties: {
+          $regex: specialty.trim(),
           $options: 'i' // case insensitive
         }
       }));
-    
+
       // Use $or to match any of the specialties
       filter.$or = regexConditions;
     }
@@ -223,11 +229,11 @@ export const getAllShops = catchAsync(async (req, res) => {
   // 5) Apply default values and transformations
   const shopsWithDefaults = shops.map((shop) => {
     const shopObj = shop.toObject();
-    
+
     return {
       ...shopObj,
-      address: shopObj.address || 
-               `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
+      address: shopObj.address ||
+        `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
       phone: shopObj.phone || shopObj.whatsapp || "01000000000",
       specialties: shopObj.specialties?.length ? shopObj.specialties : ["مجوهرات", "ذهب"],
       workingHours: shopObj.workingHours || "9:00 ص - 9:00 م",
