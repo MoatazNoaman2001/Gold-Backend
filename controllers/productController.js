@@ -1,6 +1,7 @@
 import { catchAsync } from "../utils/wrapperFunction.js";
 import Product from "../models/productModel.js";
 import Favorite from "../models/FavModels.js";
+import Shop from "../models/shopModel.js"
 import AIProductDescriptionService from "../services/aiProductDescriptionService.js";
 import UserBehavior from "../models/userBehaviorModel.js";
 import multer from "multer";
@@ -359,10 +360,13 @@ export const getProduct = catchAsync(async (req, res) => {
 // Get products by shop ID
 export const getProductsByShop = catchAsync(async (req, res) => {
   const { shopId } = req.params;
-
-  const Shop = (await import("../models/shopModel.js")).default;
-  const shop = await Shop.findById(shopId);
-
+  console.log(`shoId: ${shopId}`);
+  
+  let shop = await Shop.findById(shopId);
+  if (!shop){
+    shop = await Shop.findOne({owner: ObjectId(shopId)})
+  }
+ 
   if (!shop) {
     return res.status(404).json({
       status: "fail",

@@ -14,6 +14,7 @@ export class ReservationExpiryJob {
       for (const reservation of expiredReservations) {
         await this.expireReservation(reservation);
       }
+      
       console.log(`Processed ${expiredReservations.length} expired reservations`);
     } catch (error) {
       console.error('Error in reservation expiry job:', error);
