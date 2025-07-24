@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Create uploads directories
-RUN mkdir -p uploads/product-images uploads/shop-images
+RUN mkdir -p uploads/product-images uploads/shop-images uploads/commercial-records
 
 # Set proper permissions
 RUN chown -R node:node /app
