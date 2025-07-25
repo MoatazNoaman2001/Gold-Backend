@@ -140,7 +140,7 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن المستخدم بائع
+// Middleware للتأكد من أن المستخدم بائع (بدون شرط الدفع)
 export const requireSeller = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -155,6 +155,128 @@ export const requireSeller = (req, res, next) => {
     });
   }
   next();
+};
+
+// Middleware للتأكد من أن البائع دفع الاشتراك (للعمليات التي تتطلب دفع)
+export const requirePaidSeller = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      status: "fail",
+      message: "User not authenticated.",
+    });
+  }
+  if (req.user.role !== "seller") {
+    return res.status(403).json({
+      status: "fail",
+      message: "Seller access required.",
+    });
+  }
+  if (!req.user.paid) {
+    return res.status(403).json({
+      status: "fail",
+      message: "Payment required. Please complete your subscription payment.",
+    });
+  }
+  next();
+};
+
+// Middleware للتأكد من أن المتجر معتمد من الأدمن
+export const requireApprovedShop = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User not authenticated.",
+      });
+    }
+    if (req.user.role !== "seller") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Seller access required.",
+      });
+    }
+
+    const shop = await Shop.findOne({ owner: req.user._id });
+    if (!shop) {
+      return res.status(404).json({
+        status: "fail",
+        message: "No shop found. Please create a shop first.",
+      });
+    }
+
+    if (shop.requestStatus !== "approved") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Shop approval required. Please wait for admin approval.",
+      });
+    }
+
+    req.shop = shop;
+    next();
+  } catch (error) {
+    console.error("Error in requireApprovedShop:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error while checking shop approval status",
+    });
+  }
+};
+
+// Middleware للتأكد من أن البائع معتمد ومدفوع (للمنتجات)
+export const requireApprovedAndPaidSeller = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User not authenticated.",
+      });
+    }
+
+    if (req.user.role !== "seller") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Seller access required.",
+      });
+    }
+
+    // التحقق من الدفع
+    if (!req.user.paid) {
+      return res.status(403).json({
+        status: "fail",
+        message: "Payment required. Please complete your subscription payment to manage products.",
+        code: "PAYMENT_REQUIRED"
+      });
+    }
+
+    // التحقق من وجود المتجر وموافقة الأدمن
+    const shop = await Shop.findOne({ owner: req.user._id });
+    if (!shop) {
+      return res.status(404).json({
+        status: "fail",
+        message: "No shop found. Please create a shop first.",
+        code: "NO_SHOP"
+      });
+    }
+
+    if (shop.requestStatus !== "approved") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Shop approval required. Please wait for admin approval before managing products.",
+        code: "SHOP_NOT_APPROVED",
+        shopStatus: shop.requestStatus,
+        rejectionReason: shop.rejectionReason || null
+      });
+    }
+
+    req.shop = shop;
+    next();
+  } catch (error) {
+    console.error("Error in requireApprovedAndPaidSeller:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error while checking seller permissions",
+    });
+  }
 };
 
 // Middleware للتأكد من أن المستخدم عميل

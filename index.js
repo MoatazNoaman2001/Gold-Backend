@@ -14,6 +14,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 // NEW RESERVATION SYSTEM IMPORTS
 // ============================================================================
 import reservationRoutes from "./routes/reservationRoutes.js";
+import simpleReservationRoutes from "./routes/simpleReservationRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import { setupDIContainer } from "./Infrastructure/DI/Container.js";
 import { setupScheduledJobs } from "./Infrastructure/Jobs/JobScheduler.js";
@@ -291,6 +292,7 @@ app.use("/price", calculatePriceRoutes);
 // NEW RESERVATION SYSTEM ROUTES
 // ============================================================================
 app.use("/reservations", reservationRoutes);
+app.use("/simple-reservations", simpleReservationRoutes);
 
 // Test endpoint to verify reservation system integration
 app.get("/test/reservation", async (req, res) => {

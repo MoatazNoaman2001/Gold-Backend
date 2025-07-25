@@ -9,7 +9,7 @@ import path from 'path';
 import { calculateTotalProductPrice } from "./goldPriceController.js";
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SCRETE);
+const stripe = new Stripe(process.env.STRIPE_SECRET);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

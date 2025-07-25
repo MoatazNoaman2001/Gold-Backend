@@ -33,6 +33,15 @@ const shopSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    requestStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    rejectionReason: {
+      type: String,
+      default: "",
+    },
     averageRating: {
       type: Number,
       default: 0,
@@ -61,7 +70,15 @@ const shopSchema = new mongoose.Schema(
       type: String, // PDF file URL
       required: [true, "سجل تجاري PDF مطلوب"],
     },
-    
+    qrCode: {
+      type: String, // QR Code image URL or base64 data
+      default: null,
+    },
+    qrCodeUrl: {
+      type: String, // The URL that the QR code points to
+      default: null,
+    },
+
   },
   
 

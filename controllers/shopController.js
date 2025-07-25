@@ -3,6 +3,7 @@ import Shop from "../models/shopModel.js";
 import multer from "multer";
 import path from 'path';
 import fs from 'fs';
+import QRCode from 'qrcode';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -120,12 +121,15 @@ export const createShop = async (req, res) => {
       images: images ? images.map(file => file.filename) : [],
       commercialRecord: commercialRecord[0].filename,
       location: locationData,
+      requestStatus: "pending", // المتجر يبدأ بحالة انتظار الموافقة
+      isApproved: false, // غير معتمد حتى موافقة الأدمن
     };
 
     const newShop = await Shop.create(shopData);
 
     res.status(201).json({
       status: "success",
+      message: "Shop created successfully. Please wait for admin approval before requesting activation.",
       data: newShop,
     });
   } catch (error) {
@@ -237,8 +241,9 @@ export const getAllShops = catchAsync(async (req, res) => {
       phone: shopObj.phone || shopObj.whatsapp || "01000000000",
       specialties: shopObj.specialties?.length ? shopObj.specialties : ["مجوهرات", "ذهب"],
       workingHours: shopObj.workingHours || "9:00 ص - 9:00 م",
-      rating: shopObj.rating || shopObj.averageRating || 4.5,
-      reviewCount: shopObj.reviewCount || 10,
+      rating: shopObj.averageRating || shopObj.rating || 0,
+      averageRating: shopObj.averageRating || shopObj.rating || 0,
+      reviewCount: shopObj.reviewCount || 0,
       description: shopObj.description || "متجر مجوهرات وذهب عالي الجودة",
       // Calculate subscription status for frontend
       isPremium: ['Premium', 'Gold'].includes(shopObj.subscriptionPlan),
@@ -382,5 +387,131 @@ export const getPublicShop = catchAsync(async (req, res) => {
   res.status(200).json({
     status: "success",
     data: shop,
+  });
+});
+
+// Generate QR Code for a shop
+export const generateShopQRCode = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  // Find the shop and verify ownership
+  const shop = await Shop.findById(id);
+
+  if (!shop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+
+  // Check if user owns this shop (for shop owners) or is admin
+  if (req.user.role !== "admin" && shop.owner.toString() !== req.user._id.toString()) {
+    return res.status(403).json({
+      status: "fail",
+      message: "You don't have permission to generate QR code for this shop",
+    });
+  }
+
+  try {
+    // Create the shop URL that the QR code will point to
+    const frontendBaseUrl = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+    const shopUrl = `${frontendBaseUrl}/shops/${shop._id}`;
+
+    // Generate QR code as base64 data URL
+    const qrCodeDataUrl = await QRCode.toDataURL(shopUrl, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      quality: 0.92,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      },
+      width: 256
+    });
+
+    // Update shop with QR code data
+    shop.qrCode = qrCodeDataUrl;
+    shop.qrCodeUrl = shopUrl;
+    await shop.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "QR Code generated successfully",
+      data: {
+        qrCode: qrCodeDataUrl,
+        qrCodeUrl: shopUrl,
+        shopId: shop._id,
+        shopName: shop.name
+      },
+    });
+  } catch (error) {
+    console.error("Error generating QR code:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to generate QR code",
+    });
+  }
+});
+
+// Get QR Code for a shop
+export const getShopQRCode = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  const shop = await Shop.findById(id).select('qrCode qrCodeUrl name owner');
+
+  if (!shop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+
+  // Check if user owns this shop (for shop owners) or is admin
+  if (req.user.role !== "admin" && shop.owner.toString() !== req.user._id.toString()) {
+    return res.status(403).json({
+      status: "fail",
+      message: "You don't have permission to access QR code for this shop",
+    });
+  }
+
+  // If QR code doesn't exist, generate it
+  if (!shop.qrCode) {
+    try {
+      const frontendBaseUrl = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+      const shopUrl = `${frontendBaseUrl}/shops/${shop._id}`;
+
+      const qrCodeDataUrl = await QRCode.toDataURL(shopUrl, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        width: 256
+      });
+
+      shop.qrCode = qrCodeDataUrl;
+      shop.qrCodeUrl = shopUrl;
+      await shop.save();
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to generate QR code",
+      });
+    }
+  }
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      qrCode: shop.qrCode,
+      qrCodeUrl: shop.qrCodeUrl,
+      shopId: shop._id,
+      shopName: shop.name
+    },
   });
 });

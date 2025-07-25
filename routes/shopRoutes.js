@@ -8,12 +8,16 @@ import {
   getPublicShops,
   getPublicShop,
   upload,
+  generateShopQRCode,
+  getShopQRCode,
 } from "../controllers/shopController.js";
 import {
   authenticateUser,
   verifyShopOwnership,
   requireSeller,
   requireAdmin,
+  requirePaidSeller,
+  requireApprovedShop,
   authorizeRoles,
 } from "../middlewares/auth.js";
 import Shop from "../models/shopModel.js";
@@ -57,9 +61,12 @@ router.patch(
 
       const shop = await Shop.findByIdAndUpdate(
         req.params.id,
-        { isApproved: true },
+        {
+          isApproved: true,
+          requestStatus: "approved" // تحديث requestStatus أيضاً
+        },
         { new: true }
-      );
+      ).populate("owner", "name email");
 
       if (!shop) {
         console.log(`Shop with ID ${req.params.id} not found`);
@@ -67,6 +74,26 @@ router.patch(
       }
 
       console.log(`Shop ${shop.name} approved successfully`);
+
+      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
+      try {
+        const { getChatIO } = await import('../sockets/socketService.js');
+        const io = getChatIO();
+
+        // إرسال إشعار لصاحب المتجر
+        io.to(shop.owner._id.toString()).emit('shopApproved', {
+          shopId: shop._id,
+          shopName: shop.name,
+          message: 'تم الموافقة على متجرك! يمكنك الآن المتابعة لعملية الدفع.',
+          timestamp: new Date()
+        });
+
+        console.log(`Notification sent to shop owner ${shop.owner.email}`);
+      } catch (socketError) {
+        console.error('Error sending socket notification:', socketError);
+        // لا نفشل العملية إذا فشل الإشعار
+      }
+
       res.json({ status: "success", data: shop });
     } catch (error) {
       console.error(`Error approving shop ${req.params.id}:`, error);
@@ -83,7 +110,7 @@ router.patch(
     try {
       const shop = await Shop.findByIdAndUpdate(
         req.params.id,
-        { isApproved: false },
+        { isApproved: false, requestStatus: "rejected" },
         { new: true }
       );
       if (!shop) {
@@ -95,5 +122,211 @@ router.patch(
     }
   }
 );
+
+// طلب تفعيل المتجر من صاحب المتجر
+router.patch(
+  "/:id/request-activation",
+  authenticateUser,
+  requireSeller,
+  async (req, res) => {
+    try {
+      const shop = await Shop.findOne({
+        _id: req.params.id,
+        owner: req.user._id
+      });
+
+      if (!shop) {
+        return res.status(404).json({
+          status: "fail",
+          message: "Shop not found or you don't own this shop"
+        });
+      }
+
+      if (shop.requestStatus === "approved") {
+        return res.status(400).json({
+          status: "fail",
+          message: "Shop is already approved"
+        });
+      }
+
+      if (shop.requestStatus === "pending") {
+        return res.status(400).json({
+          status: "fail",
+          message: "Activation request is already pending"
+        });
+      }
+
+      const updatedShop = await Shop.findByIdAndUpdate(
+        req.params.id,
+        { requestStatus: "pending" },
+        { new: true }
+      );
+
+      res.json({
+        status: "success",
+        message: "Activation request submitted successfully",
+        data: updatedShop
+      });
+    } catch (error) {
+      console.error(`Error requesting shop activation:`, error);
+      res.status(500).json({
+        status: "error",
+        message: error.message
+      });
+    }
+  }
+);
+
+// موافقة الأدمن على طلب تفعيل المتجر
+router.patch(
+  "/:id/approve-activation",
+  authenticateUser,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const shop = await Shop.findByIdAndUpdate(
+        req.params.id,
+        {
+          requestStatus: "approved",
+          isApproved: true
+        },
+        { new: true }
+      ).populate("owner", "name email");
+
+      if (!shop) {
+        return res.status(404).json({
+          status: "fail",
+          message: "Shop not found"
+        });
+      }
+
+      console.log(`Admin ${req.user.name} approved shop activation for ${shop.name}`);
+
+      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
+      try {
+        const { getChatIO } = await import('../sockets/socketService.js');
+        const io = getChatIO();
+
+        // إرسال إشعار لصاحب المتجر
+        io.to(shop.owner._id.toString()).emit('shopApproved', {
+          shopId: shop._id,
+          shopName: shop.name,
+          message: 'تم الموافقة على متجرك! يمكنك الآن المتابعة لعملية الدفع.',
+          timestamp: new Date()
+        });
+
+        console.log(`Notification sent to shop owner ${shop.owner.email}`);
+      } catch (socketError) {
+        console.error('Error sending socket notification:', socketError);
+        // لا نفشل العملية إذا فشل الإشعار
+      }
+
+      res.json({
+        status: "success",
+        message: "Shop activation approved successfully",
+        data: shop
+      });
+    } catch (error) {
+      console.error(`Error approving shop activation:`, error);
+      res.status(500).json({
+        status: "error",
+        message: error.message
+      });
+    }
+  }
+);
+
+// رفض الأدمن لطلب تفعيل المتجر
+router.patch(
+  "/:id/reject-activation",
+  authenticateUser,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { reason } = req.body;
+
+      const shop = await Shop.findByIdAndUpdate(
+        req.params.id,
+        {
+          requestStatus: "rejected",
+          isApproved: false,
+          rejectionReason: reason || "No reason provided"
+        },
+        { new: true }
+      ).populate("owner", "name email");
+
+      if (!shop) {
+        return res.status(404).json({
+          status: "fail",
+          message: "Shop not found"
+        });
+      }
+
+      console.log(`Admin ${req.user.name} rejected shop activation for ${shop.name}`);
+
+      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
+      try {
+        const { getChatIO } = await import('../sockets/socketService.js');
+        const io = getChatIO();
+
+        // إرسال إشعار لصاحب المتجر
+        io.to(shop.owner._id.toString()).emit('shopRejected', {
+          shopId: shop._id,
+          shopName: shop.name,
+          reason: reason || "No reason provided",
+          message: 'تم رفض طلب تفعيل متجرك. يمكنك مراجعة السبب وإعادة التقديم.',
+          timestamp: new Date()
+        });
+
+        console.log(`Rejection notification sent to shop owner ${shop.owner.email}`);
+      } catch (socketError) {
+        console.error('Error sending socket notification:', socketError);
+        // لا نفشل العملية إذا فشل الإشعار
+      }
+
+      res.json({
+        status: "success",
+        message: "Shop activation rejected",
+        data: shop
+      });
+    } catch (error) {
+      console.error(`Error rejecting shop activation:`, error);
+      res.status(500).json({
+        status: "error",
+        message: error.message
+      });
+    }
+  }
+);
+
+// الحصول على طلبات التفعيل المعلقة (للأدمن)
+router.get(
+  "/admin/pending-activations",
+  authenticateUser,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const pendingShops = await Shop.find({
+        requestStatus: "pending"
+      }).populate("owner", "name email phone");
+
+      res.json({
+        status: "success",
+        data: pendingShops,
+        count: pendingShops.length
+      });
+    } catch (error) {
+      console.error(`Error fetching pending activations:`, error);
+      res.status(500).json({
+        status: "error",
+        message: error.message
+      });
+    }
+  }
+);
+
+// QR Code routes
+router.post("/:id/qr-code/generate", authenticateUser, generateShopQRCode);
+router.get("/:id/qr-code", authenticateUser, getShopQRCode);
 
 export default router;
