@@ -333,4 +333,62 @@ router.get(
 router.post("/:id/qr-code/generate", authenticateUser, generateShopQRCode);
 router.get("/:id/qr-code", authenticateUser, getShopQRCode);
 
+// Commercial Record route for admin
+router.get("/:id/commercial-record", authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`🔍 Admin ${req.user.email} requesting commercial record for shop ${id}`);
+
+    // Find the shop
+    const shop = await Shop.findById(id);
+    if (!shop) {
+      console.log(`❌ Shop not found: ${id}`);
+      return res.status(404).json({
+        status: "fail",
+        message: "Shop not found"
+      });
+    }
+
+    if (!shop.commercialRecord) {
+      console.log(`❌ No commercial record found for shop: ${id}`);
+      return res.status(404).json({
+        status: "fail",
+        message: "No commercial record found for this shop"
+      });
+    }
+
+    // Build the file path
+    const filePath = path.join(process.cwd(), "uploads", "commercial-records", shop.commercialRecord);
+    console.log(`📁 Looking for file at: ${filePath}`);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.log(`❌ Commercial record file not found: ${filePath}`);
+      return res.status(404).json({
+        status: "fail",
+        message: "Commercial record file not found on server"
+      });
+    }
+
+    // Set appropriate headers for PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${shop.commercialRecord}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    console.log(`✅ Serving commercial record: ${shop.commercialRecord}`);
+
+    // Send the file
+    res.sendFile(filePath);
+
+  } catch (error) {
+    console.error(`❌ Error serving commercial record:`, error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to download commercial record",
+      error: error.message
+    });
+  }
+});
+
 export default router;
