@@ -21,6 +21,11 @@ import {
   authorizeRoles,
 } from "../middlewares/auth.js";
 import Shop from "../models/shopModel.js";
+import User from "../models/userModel.js";
+import NotificationService from "../services/notificationService.js";
+import jwt from "jsonwebtoken";
+import path from "path";
+import fs from "fs";
 const router = express.Router();
 
 // Public routes (no authentication required)
@@ -47,7 +52,6 @@ router.delete(
   authorizeRoles("seller", "admin"),
   deleteShop
 );
-
 
 router.patch(
   "/:id/approve",

@@ -1,8 +1,6 @@
-
-import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
-import Shop from '../models/shopModel.js';
-
+import jwt from "jsonwebtoken";
+import User from "../models/userModel.js";
+import Shop from "../models/shopModel.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -35,7 +33,6 @@ export const protect = async (req, res, next) => {
   }
 };
 export const authenticateUser = async (req, res, next) => {
-
   let token;
   if (req.headers.authorization) {
     if (req.headers.authorization.startsWith("Bearer ")) {
@@ -48,16 +45,25 @@ export const authenticateUser = async (req, res, next) => {
     return res.status(401).json({ message: "Not authorized, no token" });
   }
   try {
-    console.log(`token: ${token}`);
+    console.log(`🔍 Token received: ${token?.substring(0, 20)}...`);
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    console.log(`🔍 Token decoded:`, { userId: decoded.id, exp: decoded.exp });
+
     const user = await User.findById(decoded.id);
     if (!user) {
+      console.log(`❌ User not found for ID: ${decoded.id}`);
       return res.status(401).json({ message: "User not found" });
     }
+
+    console.log(`✅ User authenticated:`, {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    });
     req.user = user;
     next();
   } catch (err) {
-    console.log(`error: ${err}`);
+    console.log(`❌ Token verification error:`, err.message);
 
     if (err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Token expired" });
@@ -82,7 +88,6 @@ export const restrictTo = (...roles) => {
     next();
   };
 };
-
 
 export const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {

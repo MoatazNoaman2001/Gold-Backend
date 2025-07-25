@@ -29,6 +29,13 @@ const shopSchema = new mongoose.Schema(
       enum: ["Basic", "Premium", "Gold"],
       default: "Basic",
     },
+    // حالة المتجر الجديدة
+    status: {
+      type: String,
+      enum: ["pending", "approved", "active", "rejected"],
+      default: "pending",
+    },
+    // الحقول القديمة للتوافق مع الكود الموجود
     isApproved: {
       type: Boolean,
       default: false,
@@ -63,7 +70,7 @@ const shopSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        required: false, 
+        required: false,
       },
     },
     commercialRecord: {
@@ -84,6 +91,32 @@ const shopSchema = new mongoose.Schema(
 
   { timestamps: true }
 );
+
+// Middleware للحفاظ على التوافق مع الحقول القديمة
+shopSchema.pre("save", function (next) {
+  // تحديث isApproved بناءً على status
+  this.isApproved = this.status === "approved" || this.status === "active";
+
+  // تحديث isPaid بناءً على status
+  this.isPaid = this.status === "active";
+
+  next();
+});
+
+// Virtual للحصول على حالة المتجر بشكل واضح
+shopSchema.virtual("shopStatus").get(function () {
+  return {
+    status: this.status,
+    isApproved: this.isApproved,
+    isPaid: this.isPaid,
+    canPay: this.status === "approved" && !this.isPaid,
+    isActive: this.status === "active",
+  };
+});
+
+// تأكد من إرجاع virtuals في JSON
+shopSchema.set("toJSON", { virtuals: true });
+shopSchema.set("toObject", { virtuals: true });
 
 const Shop = mongoose.model("Shop", shopSchema);
 
