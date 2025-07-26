@@ -92,18 +92,14 @@ const shopSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Middleware للحفاظ على التوافق مع الحقول القديمة
 shopSchema.pre("save", function (next) {
-  // تحديث isApproved بناءً على status
   this.isApproved = this.status === "approved" || this.status === "active";
 
-  // تحديث isPaid بناءً على status
   this.isPaid = this.status === "active";
 
   next();
 });
 
-// Virtual للحصول على حالة المتجر بشكل واضح
 shopSchema.virtual("shopStatus").get(function () {
   return {
     status: this.status,
@@ -114,7 +110,6 @@ shopSchema.virtual("shopStatus").get(function () {
   };
 });
 
-// تأكد من إرجاع virtuals في JSON
 shopSchema.set("toJSON", { virtuals: true });
 shopSchema.set("toObject", { virtuals: true });
 

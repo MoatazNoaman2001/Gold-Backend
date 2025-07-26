@@ -41,7 +41,7 @@ export const rateProduct = catchAsync(async (req, res) => {
     // Populate user data
     await existingRating.populate('userId', 'name email');
 
-    console.log(`✅ User ${userId} updated rating for product ${productId}`);
+    console.log(` User ${userId} updated rating for product ${productId}`);
 
     return res.status(200).json({
       status: 'success',
@@ -62,7 +62,7 @@ export const rateProduct = catchAsync(async (req, res) => {
     // Populate user data
     await newRating.populate('userId', 'name email');
 
-    console.log(`✅ User ${userId} rated product ${productId} with ${rating} stars`);
+    console.log(` User ${userId} rated product ${productId} with ${rating} stars`);
 
     return res.status(201).json({
       status: 'success',
@@ -116,7 +116,7 @@ export const getProductRatings = catchAsync(async (req, res) => {
   // Get rating statistics
   const stats = await Rating.calculateProductStats(productId);
 
-  console.log(`📊 Retrieved ${ratings.length} ratings for product ${productId}`);
+  console.log(` Retrieved ${ratings.length} ratings for product ${productId}`);
 
   res.status(200).json({
     status: 'success',
@@ -181,7 +181,7 @@ export const deleteRating = catchAsync(async (req, res) => {
 
   await rating.remove();
 
-  console.log(`🗑️ User ${userId} deleted rating for product ${productId}`);
+  console.log(` User ${userId} deleted rating for product ${productId}`);
 
   res.status(200).json({
     status: 'success',

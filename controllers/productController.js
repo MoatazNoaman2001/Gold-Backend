@@ -540,10 +540,31 @@ export const getAllFav = catchAsync(async (req, res) => {
     .populate("product")
     .exec();
 
+  const Rating = (await import('../models/ratingModel.js')).default || (await import('../models/ratingModel.js'));
+  const favsWithRating = await Promise.all(
+    favorites.map(async (fav) => {
+      let product = fav.product && fav.product.toObject ? fav.product.toObject() : fav.product;
+      let averageRating = 0;
+      try {
+        const stats = await Rating.calculateProductStats(product._id);
+        averageRating = stats?.averageRating || 0;
+      } catch (e) {
+        averageRating = 0;
+      }
+      return {
+        ...fav.toObject(),
+        product: {
+          ...product,
+          averageRating,
+        },
+      };
+    })
+  );
+
   return res.status(200).json({
     status: "success",
-    results: favorites.length,
-    data: { favorites },
+    results: favsWithRating.length,
+    data: { favorites: favsWithRating },
   });
 });
 

@@ -45,17 +45,17 @@ export const authenticateUser = async (req, res, next) => {
     return res.status(401).json({ message: "Not authorized, no token" });
   }
   try {
-    console.log(`🔍 Token received: ${token?.substring(0, 20)}...`);
+    console.log(`Token received: ${token?.substring(0, 20)}...`);
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    console.log(`🔍 Token decoded:`, { userId: decoded.id, exp: decoded.exp });
+    console.log(` Token decoded:`, { userId: decoded.id, exp: decoded.exp });
 
     const user = await User.findById(decoded.id);
     if (!user) {
-      console.log(`❌ User not found for ID: ${decoded.id}`);
+      console.log(`User not found for ID: ${decoded.id}`);
       return res.status(401).json({ message: "User not found" });
     }
 
-    console.log(`✅ User authenticated:`, {
+    console.log(`User authenticated:`, {
       id: user._id,
       email: user.email,
       role: user.role,
@@ -63,7 +63,7 @@ export const authenticateUser = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    console.log(`❌ Token verification error:`, err.message);
+    console.log(` Token verification error:`, err.message);
 
     if (err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Token expired" });
@@ -114,7 +114,6 @@ export const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-// Middleware للتأكد من أن المستخدم أدمن
 export const requireAdmin = (req, res, next) => {
   console.log(
     "requireAdmin middleware - checking user:",
@@ -145,7 +144,6 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن المستخدم بائع (بدون شرط الدفع)
 export const requireSeller = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -162,7 +160,6 @@ export const requireSeller = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن البائع دفع الاشتراك (للعمليات التي تتطلب دفع)
 export const requirePaidSeller = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -185,7 +182,6 @@ export const requirePaidSeller = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن المتجر معتمد من الأدمن
 export const requireApprovedShop = async (req, res, next) => {
   try {
     if (!req.user) {
@@ -227,7 +223,6 @@ export const requireApprovedShop = async (req, res, next) => {
   }
 };
 
-// Middleware للتأكد من أن البائع معتمد ومدفوع (للمنتجات)
 export const requireApprovedAndPaidSeller = async (req, res, next) => {
   try {
     if (!req.user) {
@@ -244,7 +239,6 @@ export const requireApprovedAndPaidSeller = async (req, res, next) => {
       });
     }
 
-    // التحقق من الدفع
     if (!req.user.paid) {
       return res.status(403).json({
         status: "fail",
@@ -253,7 +247,6 @@ export const requireApprovedAndPaidSeller = async (req, res, next) => {
       });
     }
 
-    // التحقق من وجود المتجر وموافقة الأدمن
     const shop = await Shop.findOne({ owner: req.user._id });
     if (!shop) {
       return res.status(404).json({
@@ -284,7 +277,6 @@ export const requireApprovedAndPaidSeller = async (req, res, next) => {
   }
 };
 
-// Middleware للتأكد من أن المستخدم عميل
 export const requireCustomer = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({

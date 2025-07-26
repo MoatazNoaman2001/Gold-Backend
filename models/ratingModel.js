@@ -113,9 +113,9 @@ ratingSchema.statics.updateProductRating = async function(productId) {
       ratingDistribution: stats.ratingDistribution
     });
     
-    console.log(`✅ Updated product ${productId} rating stats:`, stats);
+    console.log(`Updated product ${productId} rating stats:`, stats);
   } catch (error) {
-    console.error('❌ Error updating product rating:', error);
+    console.error(' Error updating product rating:', error);
   }
 };
 

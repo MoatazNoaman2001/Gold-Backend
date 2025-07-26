@@ -5,9 +5,9 @@ import Shop from '../models/shopModel.js';
 const connectDB = async () => {
   try {
     await mongoose.connect('mongodb://127.0.0.1:27017/gold-platform');
-    console.log('✅ Connected to MongoDB');
+    console.log(' Connected to MongoDB');
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('MongoDB connection error:', error);
     process.exit(1);
   }
 };
@@ -15,11 +15,11 @@ const connectDB = async () => {
 // Update shops with missing data
 const updateShopsData = async () => {
   try {
-    console.log('🔄 Starting shops data update...');
+    console.log(' Starting shops data update...');
     
     // Get all shops
     const shops = await Shop.find({});
-    console.log(`📊 Found ${shops.length} shops to update`);
+    console.log(`Found ${shops.length} shops to update`);
 
     const sampleAddresses = [
       'شارع الجمهورية، وسط البلد، القاهرة',
@@ -94,13 +94,13 @@ const updateShopsData = async () => {
       // Update the shop if there are changes
       if (Object.keys(updates).length > 0) {
         await Shop.findByIdAndUpdate(shop._id, updates);
-        console.log(`✅ Updated shop: ${shop.name || shop._id}`);
+        console.log(` Updated shop: ${shop.name || shop._id}`);
       }
     }
 
-    console.log('🎉 All shops updated successfully!');
+    console.log(' All shops updated successfully!');
   } catch (error) {
-    console.error('❌ Error updating shops:', error);
+    console.error(' Error updating shops:', error);
   }
 };
 
@@ -109,7 +109,7 @@ const runUpdate = async () => {
   await connectDB();
   await updateShopsData();
   await mongoose.disconnect();
-  console.log('👋 Disconnected from MongoDB');
+  console.log('Disconnected from MongoDB');
   process.exit(0);
 };
 

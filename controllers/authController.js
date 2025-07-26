@@ -370,7 +370,6 @@ export const createPortalSession = async (req, res) => {
   }
 };
 
-// إنشاء جلسة دفع للحجوزات
 export const createReservationPaymentSession = async (req, res) => {
   try {
     const { productId, reservationAmount, email, productName } = req.body;
@@ -383,7 +382,7 @@ export const createReservationPaymentSession = async (req, res) => {
     console.log('Creating reservation payment session for:', { productId, reservationAmount, email, productName });
 
     const sessionConfig = {
-      mode: 'payment', // دفعة واحدة وليس اشتراك
+      mode: 'payment', 
       payment_method_types: ['card'],
       line_items: [
         {
@@ -397,7 +396,7 @@ export const createReservationPaymentSession = async (req, res) => {
                 productId: productId
               }
             },
-            unit_amount: Math.round(reservationAmount * 100), // تحويل إلى قروش
+            unit_amount: Math.round(reservationAmount * 100), 
           },
           quantity: 1,
         },
@@ -427,8 +426,7 @@ export const createReservationPaymentSession = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-// حذف الحجز مع إعادة تعيين حالة المنتج
-// الحصول على حجوزات المستخدم بدون authentication (للاختبار)
+
 export const getUserReservationsPublic = async (req, res) => {
   try {
     const { email } = req.query;
@@ -440,9 +438,8 @@ export const getUserReservationsPublic = async (req, res) => {
       });
     }
 
-    console.log('📋 Getting reservations for email:', email);
+    console.log(' Getting reservations for email:', email);
 
-    // البحث عن المستخدم
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
@@ -451,13 +448,12 @@ export const getUserReservationsPublic = async (req, res) => {
       });
     }
 
-    // البحث عن حجوزات المستخدم
     const reservations = await SimpleReservation.find({ userId: user._id })
       .populate('productId', 'title name logoUrl karat weight price description')
       .populate('shopId', 'name')
       .sort({ createdAt: -1 });
 
-    console.log('📋 Found reservations:', reservations.length);
+    console.log(' Found reservations:', reservations.length);
 
     res.status(200).json({
       status: 'success',
@@ -468,7 +464,7 @@ export const getUserReservationsPublic = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error getting user reservations:', error);
+    console.error(' Error getting user reservations:', error);
     res.status(500).json({
       status: 'error',
       message: 'Internal server error'
@@ -480,9 +476,8 @@ export const deleteReservation = async (req, res) => {
   try {
     const { reservationId } = req.params;
 
-    console.log('🗑️ Deleting reservation:', reservationId);
+    console.log(' Deleting reservation:', reservationId);
 
-    // البحث عن الحجز
     const reservation = await SimpleReservation.findById(reservationId);
     if (!reservation) {
       return res.status(404).json({
@@ -491,17 +486,15 @@ export const deleteReservation = async (req, res) => {
       });
     }
 
-    // إعادة تعيين حالة المنتج إلى متاح
     const product = await Product.findById(reservation.productId);
     if (product) {
       product.isAvailable = true;
       await product.save();
-      console.log('✅ Product availability reset to true');
+      console.log(' Product availability reset to true');
     }
 
-    // حذف الحجز
     await SimpleReservation.findByIdAndDelete(reservationId);
-    console.log('✅ Reservation deleted successfully');
+    console.log(' Reservation deleted successfully');
 
     res.status(200).json({
       status: 'success',
@@ -509,7 +502,7 @@ export const deleteReservation = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error deleting reservation:', error);
+    console.error(' Error deleting reservation:', error);
     res.status(500).json({
       status: 'error',
       message: 'Internal server error'
@@ -518,7 +511,7 @@ export const deleteReservation = async (req, res) => {
 };
 
 export const stripeWebhook = async (req, res) => {
-  console.log(`🔔 Stripe webhook event received`);
+  console.log(` Stripe webhook event received`);
 
   let event = req.body;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -530,9 +523,9 @@ export const stripeWebhook = async (req, res) => {
         signature,
         endpointSecret
       );
-      console.log(`✅ Webhook signature verified for event: ${event.type}`);
+      console.log(` Webhook signature verified for event: ${event.type}`);
     } catch (err) {
-      console.log(`❌ Webhook signature verification failed:`, err.message);
+      console.log(` Webhook signature verification failed:`, err.message);
       return res.sendStatus(400);
     }
   }
@@ -541,9 +534,8 @@ export const stripeWebhook = async (req, res) => {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object;
-      console.log('🎉 Checkout session completed:', session.id);
+      console.log(' Checkout session completed:', session.id);
 
-      // التحقق من نوع الدفع من metadata
       if (session.metadata?.type === 'reservation') {
         await handleReservationCheckoutCompleted(session);
       }
@@ -600,13 +592,12 @@ export const sellerPaidUpdate = async (req, res) =>{
   }
 }
 
-// التحقق من حالة الدفع للحجوزات وإنشاء الحجز إذا لم يكن موجوداً (يتطلب authentication)
 export const verifyReservationPayment = async (req, res) => {
   try {
     const { sessionId, productId } = req.body;
     const userId = req.user._id;
 
-    console.log('🔍 Verifying reservation payment:', { sessionId, productId, userId });
+    console.log(' Verifying reservation payment:', { sessionId, productId, userId });
 
     if (!sessionId || !productId) {
       return res.status(400).json({
@@ -615,24 +606,22 @@ export const verifyReservationPayment = async (req, res) => {
       });
     }
 
-    // التحقق من جلسة Stripe
     let session;
     try {
       session = await stripe.checkout.sessions.retrieve(sessionId);
-      console.log('💳 Stripe session retrieved:', {
+      console.log(' Stripe session retrieved:', {
         id: session.id,
         payment_status: session.payment_status,
         metadata: session.metadata
       });
     } catch (stripeError) {
-      console.error('❌ Error retrieving Stripe session:', stripeError);
+      console.error(' Error retrieving Stripe session:', stripeError);
       return res.status(400).json({
         status: 'fail',
         message: 'Invalid session ID'
       });
     }
 
-    // التحقق من حالة الدفع
     if (session.payment_status !== 'paid') {
       return res.status(400).json({
         status: 'fail',
@@ -640,7 +629,6 @@ export const verifyReservationPayment = async (req, res) => {
       });
     }
 
-    // البحث عن حجز موجود مسبقاً
     const existingReservation = await SimpleReservation.findOne({
       stripeSessionId: sessionId
     }).populate([
@@ -650,7 +638,7 @@ export const verifyReservationPayment = async (req, res) => {
     ]);
 
     if (existingReservation) {
-      console.log('✅ Found existing reservation:', existingReservation._id);
+      console.log(' Found existing reservation:', existingReservation._id);
       return res.status(200).json({
         status: 'success',
         message: 'Reservation already exists',
@@ -660,7 +648,6 @@ export const verifyReservationPayment = async (req, res) => {
       });
     }
 
-    // البحث عن المنتج
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -669,7 +656,6 @@ export const verifyReservationPayment = async (req, res) => {
       });
     }
 
-    // التحقق من أن المنتج متاح للحجز
     if (!product.isAvailable) {
       return res.status(400).json({
         status: 'fail',
@@ -677,54 +663,50 @@ export const verifyReservationPayment = async (req, res) => {
       });
     }
 
-    // حساب مبالغ الحجز
     const totalAmount = parseFloat(product.price);
     const reservationAmount = totalAmount * 0.1; // 10%
     const remainingAmount = totalAmount - reservationAmount;
 
-    // إنشاء الحجز الجديد
     const reservation = new SimpleReservation({
       userId: userId,
       productId: productId,
-      shopId: product.shop, // تصحيح: استخدام product.shop بدلاً من product.shopId
+      shopId: product.shop, 
       totalAmount: totalAmount,
       reservationAmount: reservationAmount,
       remainingAmount: remainingAmount,
-      status: 'active', // تصحيح: استخدام 'active' بدلاً من 'ACTIVE'
+      status: 'active',
       reservationDate: new Date(),
-      expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 أيام
+      expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
       stripeSessionId: sessionId,
       paymentStatus: 'RESERVATION_PAID'
     });
 
     try {
       await reservation.save();
-      console.log('✅ Reservation saved successfully:', reservation._id);
+      console.log(' Reservation saved successfully:', reservation._id);
 
-      // تحديث حالة المنتج إلى غير متاح
       product.isAvailable = false;
       await product.save();
-      console.log('✅ Product availability updated');
+      console.log(' Product availability updated');
     } catch (saveError) {
-      console.error('❌ Error saving reservation:', saveError);
+      console.error(' Error saving reservation:', saveError);
       throw new Error(`Failed to save reservation: ${saveError.message}`);
     }
 
-    // تحميل البيانات المرتبطة
     await reservation.populate([
       { path: 'productId', select: 'title name logoUrl karat weight price description' },
       { path: 'shopId', select: 'name' },
       { path: 'userId', select: 'name email' }
     ]);
 
-    console.log('✅ Reservation populated with data:', {
+    console.log(' Reservation populated with data:', {
       reservationId: reservation._id,
       productData: reservation.productId,
       shopData: reservation.shopId,
       userData: reservation.userId
     });
 
-    console.log('✅ New reservation created after payment verification:', reservation._id);
+    console.log(' New reservation created after payment verification:', reservation._id);
 
     res.status(201).json({
       status: 'success',
@@ -735,7 +717,7 @@ export const verifyReservationPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error in verifyReservationPayment:', {
+    console.error(' Error in verifyReservationPayment:', {
       error: error.message,
       stack: error.stack,
       sessionId: req.body.sessionId,
@@ -751,12 +733,11 @@ export const verifyReservationPayment = async (req, res) => {
   }
 };
 
-// التحقق من حالة الدفع للحجوزات بدون authentication (للاستخدام بعد العودة من Stripe)
 export const verifyReservationPaymentPublic = async (req, res) => {
   try {
     const { sessionId, productId } = req.body;
 
-    console.log('🔍 Public verification of reservation payment:', { sessionId, productId });
+    console.log(' Public verification of reservation payment:', { sessionId, productId });
 
     if (!sessionId || !productId) {
       return res.status(400).json({
@@ -765,7 +746,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       });
     }
 
-    // البحث عن حجز موجود مسبقاً (إما بـ sessionId أو بـ productId + user email)
     let existingReservation = await SimpleReservation.findOne({
       stripeSessionId: sessionId
     }).populate([
@@ -775,7 +755,7 @@ export const verifyReservationPaymentPublic = async (req, res) => {
     ]);
 
     if (existingReservation) {
-      console.log('✅ Found existing reservation by sessionId:', existingReservation._id);
+      console.log(' Found existing reservation by sessionId:', existingReservation._id);
       return res.status(200).json({
         status: 'success',
         message: 'Reservation found',
@@ -784,19 +764,16 @@ export const verifyReservationPaymentPublic = async (req, res) => {
         }
       });
     }
-
-    // إذا لم نجد الحجز بـ sessionId، نبحث بـ productId (في حالة تم إنشاؤه عبر webhook)
-    // أولاً نحتاج للحصول على email المستخدم من Stripe session
-    let session;
+ let session;
     try {
       session = await stripe.checkout.sessions.retrieve(sessionId);
-      console.log('💳 Stripe session retrieved for user lookup:', {
+      console.log(' Stripe session retrieved for user lookup:', {
         id: session.id,
         payment_status: session.payment_status,
         customer_email: session.customer_details?.email
       });
     } catch (stripeError) {
-      console.error('❌ Error retrieving Stripe session:', stripeError);
+      console.error(' Error retrieving Stripe session:', stripeError);
       return res.status(400).json({
         status: 'fail',
         message: 'Invalid session ID'
@@ -807,7 +784,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
     if (customerEmail) {
       const user = await User.findOne({ email: customerEmail });
       if (user) {
-        // البحث عن حجز للمستخدم والمنتج
         existingReservation = await SimpleReservation.findOne({
           userId: user._id,
           productId: productId,
@@ -819,7 +795,7 @@ export const verifyReservationPaymentPublic = async (req, res) => {
         ]);
 
         if (existingReservation) {
-          console.log('✅ Found existing reservation by user and product:', existingReservation._id);
+          console.log(' Found existing reservation by user and product:', existingReservation._id);
           return res.status(200).json({
             status: 'success',
             message: 'Reservation found',
@@ -831,7 +807,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       }
     }
 
-    // إذا لم نجد حجز موجود، نتحقق من حالة الدفع
     if (session.payment_status !== 'paid') {
       return res.status(400).json({
         status: 'fail',
@@ -839,7 +814,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       });
     }
 
-    // التحقق من وجود email المستخدم
     if (!customerEmail) {
       return res.status(400).json({
         status: 'fail',
@@ -855,7 +829,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       });
     }
 
-    // البحث عن المنتج
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -864,8 +837,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       });
     }
 
-    // التحقق من أن المنتج متاح للحجز
-    // أولاً نتحقق من وجود حجوزات نشطة للمنتج
     const activeReservationForProduct = await SimpleReservation.findOne({
       productId: productId,
       status: { $in: ['active', 'confirmed'] }
@@ -878,32 +849,28 @@ export const verifyReservationPaymentPublic = async (req, res) => {
       });
     }
 
-    // إذا لم توجد حجوزات نشطة، نتأكد من أن المنتج متاح
     if (!product.isAvailable) {
-      // إعادة تعيين حالة المنتج إذا لم توجد حجوزات نشطة
       product.isAvailable = true;
       await product.save();
-      console.log('✅ Product availability reset to true (no active reservations found)');
+      console.log(' Product availability reset to true (no active reservations found)');
     }
 
-    // حساب مبالغ الحجز
     const totalAmount = parseFloat(product.price);
     const reservationAmount = totalAmount * 0.1; // 10%
     const remainingAmount = totalAmount - reservationAmount;
 
-    // إنشاء الحجز الجديد
     const reservation = new SimpleReservation({
       userId: user._id,
       productId: productId,
-      shopId: product.shop, // تصحيح: استخدام product.shop بدلاً من product.shopId
+      shopId: product.shop, 
       totalAmount: totalAmount,
       reservationAmount: reservationAmount,
       remainingAmount: remainingAmount,
-      status: 'active', // تصحيح: استخدام 'active' بدلاً من 'ACTIVE'
+      status: 'active', 
       reservationDate: new Date(),
-      expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 أيام
+      expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
       stripeSessionId: sessionId,
-      paymentMethodId: sessionId, // استخدام sessionId كـ paymentMethodId
+      paymentMethodId: sessionId, 
       paymentStatus: 'RESERVATION_PAID'
     });
 
@@ -954,7 +921,6 @@ export const verifyReservationPaymentPublic = async (req, res) => {
   }
 };
 
-// معالجة إكمال جلسة الدفع للحجوزات
 const handleReservationCheckoutCompleted = async (session) => {
   try {
     const { productId, reservationAmount } = session.metadata;

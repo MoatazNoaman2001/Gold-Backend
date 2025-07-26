@@ -65,8 +65,8 @@ const deleteUploadedFiles = (files) => {
     .flat()
     .forEach((file) => {
       fs.unlink(file.path, (err) => {
-        if (err) console.error(`❌ Error deleting file: ${file.path}`, err);
-        else console.log(`🗑️ Deleted file: ${file.path}`);
+        if (err) console.error(` Error deleting file: ${file.path}`, err);
+        else console.log(` Deleted file: ${file.path}`);
       });
     });
 };
@@ -125,8 +125,8 @@ export const createShop = async (req, res) => {
       images: images ? images.map((file) => file.filename) : [],
       commercialRecord: commercialRecord[0].filename,
       location: locationData,
-      requestStatus: "pending", // المتجر يبدأ بحالة انتظار الموافقة
-      isApproved: false, // غير معتمد حتى موافقة الأدمن
+      requestStatus: "pending", 
+      isApproved: false, 
     };
 
     const newShop = await Shop.create(shopData);
@@ -137,7 +137,7 @@ export const createShop = async (req, res) => {
       data: newShop,
     });
   } catch (error) {
-    console.error(`❌ Error creating shop: ${error}`);
+    console.error(` Error creating shop: ${error}`);
     deleteUploadedFiles(req.files);
     res.status(500).json({
       status: "error",
@@ -346,7 +346,7 @@ export const updateShop = catchAsync(async (req, res) => {
 export const getPublicShops = catchAsync(async (req, res) => {
   // Only return active shops for public viewing (approved and paid)
   const shops = await Shop.find({
-    status: "active", // المتاجر النشطة فقط
+    status: "active", 
   }).populate("owner", "name email");
 
   // Add default values for missing fields

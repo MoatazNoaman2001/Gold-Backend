@@ -67,7 +67,7 @@ router.patch(
         req.params.id,
         {
           isApproved: true,
-          requestStatus: "approved" // تحديث requestStatus أيضاً
+          requestStatus: "approved" 
         },
         { new: true }
       ).populate("owner", "name email");
@@ -79,12 +79,10 @@ router.patch(
 
       console.log(`Shop ${shop.name} approved successfully`);
 
-      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
       try {
         const { getChatIO } = await import('../sockets/socketService.js');
         const io = getChatIO();
 
-        // إرسال إشعار لصاحب المتجر
         io.to(shop.owner._id.toString()).emit('shopApproved', {
           shopId: shop._id,
           shopName: shop.name,
@@ -95,7 +93,6 @@ router.patch(
         console.log(`Notification sent to shop owner ${shop.owner.email}`);
       } catch (socketError) {
         console.error('Error sending socket notification:', socketError);
-        // لا نفشل العملية إذا فشل الإشعار
       }
 
       res.json({ status: "success", data: shop });
@@ -127,7 +124,6 @@ router.patch(
   }
 );
 
-// طلب تفعيل المتجر من صاحب المتجر
 router.patch(
   "/:id/request-activation",
   authenticateUser,
@@ -181,7 +177,6 @@ router.patch(
   }
 );
 
-// موافقة الأدمن على طلب تفعيل المتجر
 router.patch(
   "/:id/approve-activation",
   authenticateUser,
@@ -206,12 +201,10 @@ router.patch(
 
       console.log(`Admin ${req.user.name} approved shop activation for ${shop.name}`);
 
-      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
       try {
         const { getChatIO } = await import('../sockets/socketService.js');
         const io = getChatIO();
 
-        // إرسال إشعار لصاحب المتجر
         io.to(shop.owner._id.toString()).emit('shopApproved', {
           shopId: shop._id,
           shopName: shop.name,
@@ -222,7 +215,6 @@ router.patch(
         console.log(`Notification sent to shop owner ${shop.owner.email}`);
       } catch (socketError) {
         console.error('Error sending socket notification:', socketError);
-        // لا نفشل العملية إذا فشل الإشعار
       }
 
       res.json({
@@ -240,7 +232,6 @@ router.patch(
   }
 );
 
-// رفض الأدمن لطلب تفعيل المتجر
 router.patch(
   "/:id/reject-activation",
   authenticateUser,
@@ -268,12 +259,10 @@ router.patch(
 
       console.log(`Admin ${req.user.name} rejected shop activation for ${shop.name}`);
 
-      // إرسال إشعار فوري لصاحب المتجر عبر WebSocket
       try {
         const { getChatIO } = await import('../sockets/socketService.js');
         const io = getChatIO();
 
-        // إرسال إشعار لصاحب المتجر
         io.to(shop.owner._id.toString()).emit('shopRejected', {
           shopId: shop._id,
           shopName: shop.name,
@@ -285,7 +274,6 @@ router.patch(
         console.log(`Rejection notification sent to shop owner ${shop.owner.email}`);
       } catch (socketError) {
         console.error('Error sending socket notification:', socketError);
-        // لا نفشل العملية إذا فشل الإشعار
       }
 
       res.json({
@@ -303,7 +291,6 @@ router.patch(
   }
 );
 
-// الحصول على طلبات التفعيل المعلقة (للأدمن)
 router.get(
   "/admin/pending-activations",
   authenticateUser,
@@ -338,12 +325,12 @@ router.get("/:id/commercial-record", authenticateUser, requireAdmin, async (req,
   try {
     const { id } = req.params;
 
-    console.log(`🔍 Admin ${req.user.email} requesting commercial record for shop ${id}`);
+    console.log(` Admin ${req.user.email} requesting commercial record for shop ${id}`);
 
     // Find the shop
     const shop = await Shop.findById(id);
     if (!shop) {
-      console.log(`❌ Shop not found: ${id}`);
+      console.log(` Shop not found: ${id}`);
       return res.status(404).json({
         status: "fail",
         message: "Shop not found"
@@ -351,7 +338,7 @@ router.get("/:id/commercial-record", authenticateUser, requireAdmin, async (req,
     }
 
     if (!shop.commercialRecord) {
-      console.log(`❌ No commercial record found for shop: ${id}`);
+      console.log(` No commercial record found for shop: ${id}`);
       return res.status(404).json({
         status: "fail",
         message: "No commercial record found for this shop"
@@ -360,11 +347,11 @@ router.get("/:id/commercial-record", authenticateUser, requireAdmin, async (req,
 
     // Build the file path
     const filePath = path.join(process.cwd(), "uploads", "commercial-records", shop.commercialRecord);
-    console.log(`📁 Looking for file at: ${filePath}`);
+    console.log(` Looking for file at: ${filePath}`);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
-      console.log(`❌ Commercial record file not found: ${filePath}`);
+      console.log(`Commercial record file not found: ${filePath}`);
       return res.status(404).json({
         status: "fail",
         message: "Commercial record file not found on server"
@@ -376,13 +363,13 @@ router.get("/:id/commercial-record", authenticateUser, requireAdmin, async (req,
     res.setHeader('Content-Disposition', `inline; filename="${shop.commercialRecord}"`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    console.log(`✅ Serving commercial record: ${shop.commercialRecord}`);
+    console.log(` Serving commercial record: ${shop.commercialRecord}`);
 
     // Send the file
     res.sendFile(filePath);
 
   } catch (error) {
-    console.error(`❌ Error serving commercial record:`, error);
+    console.error(` Error serving commercial record:`, error);
     res.status(500).json({
       status: "error",
       message: "Failed to download commercial record",
