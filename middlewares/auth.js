@@ -1,8 +1,6 @@
-
-import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
-import Shop from '../models/shopModel.js';
-
+import jwt from "jsonwebtoken";
+import User from "../models/userModel.js";
+import Shop from "../models/shopModel.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -35,7 +33,6 @@ export const protect = async (req, res, next) => {
   }
 };
 export const authenticateUser = async (req, res, next) => {
-
   let token;
   if (req.headers.authorization) {
     if (req.headers.authorization.startsWith("Bearer ")) {
@@ -48,16 +45,25 @@ export const authenticateUser = async (req, res, next) => {
     return res.status(401).json({ message: "Not authorized, no token" });
   }
   try {
-    console.log(`token: ${token}`);
+    console.log(`Token received: ${token?.substring(0, 20)}...`);
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    console.log(` Token decoded:`, { userId: decoded.id, exp: decoded.exp });
+
     const user = await User.findById(decoded.id);
     if (!user) {
+      console.log(`User not found for ID: ${decoded.id}`);
       return res.status(401).json({ message: "User not found" });
     }
+
+    console.log(`User authenticated:`, {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    });
     req.user = user;
     next();
   } catch (err) {
-    console.log(`error: ${err}`);
+    console.log(` Token verification error:`, err.message);
 
     if (err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Token expired" });
@@ -82,7 +88,6 @@ export const restrictTo = (...roles) => {
     next();
   };
 };
-
 
 export const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
@@ -109,7 +114,6 @@ export const authorizeRoles = (...allowedRoles) => {
   };
 };
 
-// Middleware للتأكد من أن المستخدم أدمن
 export const requireAdmin = (req, res, next) => {
   console.log(
     "requireAdmin middleware - checking user:",
@@ -140,7 +144,6 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن المستخدم بائع
 export const requireSeller = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -157,7 +160,123 @@ export const requireSeller = (req, res, next) => {
   next();
 };
 
-// Middleware للتأكد من أن المستخدم عميل
+export const requirePaidSeller = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      status: "fail",
+      message: "User not authenticated.",
+    });
+  }
+  if (req.user.role !== "seller") {
+    return res.status(403).json({
+      status: "fail",
+      message: "Seller access required.",
+    });
+  }
+  if (!req.user.paid) {
+    return res.status(403).json({
+      status: "fail",
+      message: "Payment required. Please complete your subscription payment.",
+    });
+  }
+  next();
+};
+
+export const requireApprovedShop = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User not authenticated.",
+      });
+    }
+    if (req.user.role !== "seller") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Seller access required.",
+      });
+    }
+
+    const shop = await Shop.findOne({ owner: req.user._id });
+    if (!shop) {
+      return res.status(404).json({
+        status: "fail",
+        message: "No shop found. Please create a shop first.",
+      });
+    }
+
+    if (shop.requestStatus !== "approved") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Shop approval required. Please wait for admin approval.",
+      });
+    }
+
+    req.shop = shop;
+    next();
+  } catch (error) {
+    console.error("Error in requireApprovedShop:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error while checking shop approval status",
+    });
+  }
+};
+
+export const requireApprovedAndPaidSeller = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User not authenticated.",
+      });
+    }
+
+    if (req.user.role !== "seller") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Seller access required.",
+      });
+    }
+
+    if (!req.user.paid) {
+      return res.status(403).json({
+        status: "fail",
+        message: "Payment required. Please complete your subscription payment to manage products.",
+        code: "PAYMENT_REQUIRED"
+      });
+    }
+
+    const shop = await Shop.findOne({ owner: req.user._id });
+    if (!shop) {
+      return res.status(404).json({
+        status: "fail",
+        message: "No shop found. Please create a shop first.",
+        code: "NO_SHOP"
+      });
+    }
+
+    if (shop.requestStatus !== "approved") {
+      return res.status(403).json({
+        status: "fail",
+        message: "Shop approval required. Please wait for admin approval before managing products.",
+        code: "SHOP_NOT_APPROVED",
+        shopStatus: shop.requestStatus,
+        rejectionReason: shop.rejectionReason || null
+      });
+    }
+
+    req.shop = shop;
+    next();
+  } catch (error) {
+    console.error("Error in requireApprovedAndPaidSeller:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error while checking seller permissions",
+    });
+  }
+};
+
 export const requireCustomer = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({

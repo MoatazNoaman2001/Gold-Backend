@@ -3,19 +3,20 @@ import Shop from "../models/shopModel.js";
 import multer from "multer";
 import path from 'path';
 import fs from 'fs';
+import QRCode from 'qrcode';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (file.fieldname === 'commercialRecord') {
-      cb(null, 'uploads/commercial-records/');
+    if (file.fieldname === "commercialRecord") {
+      cb(null, "uploads/commercial-records/");
     } else {
-      cb(null, 'uploads/shop-images/');
+      cb(null, "uploads/shop-images/");
     }
   },
   filename: (req, file, cb) => {
     const sanitizedFilename = file.originalname
-      .replace(/\s+/g, '-')
-      .replace(/[^a-zA-Z0-9-.]/g, '')
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-.]/g, "")
       .toLowerCase();
     cb(null, `${Date.now()}-${sanitizedFilename}`);
   },
@@ -60,12 +61,14 @@ export const upload = multer({
 //  function to delete uploaded files
 const deleteUploadedFiles = (files) => {
   if (!files) return;
-  Object.values(files).flat().forEach(file => {
-    fs.unlink(file.path, (err) => {
-      if (err) console.error(`❌ Error deleting file: ${file.path}`, err);
-      else console.log(`🗑️ Deleted file: ${file.path}`);
+  Object.values(files)
+    .flat()
+    .forEach((file) => {
+      fs.unlink(file.path, (err) => {
+        if (err) console.error(` Error deleting file: ${file.path}`, err);
+        else console.log(` Deleted file: ${file.path}`);
+      });
     });
-  });
 };
 
 export const createShop = async (req, res) => {
@@ -74,8 +77,8 @@ export const createShop = async (req, res) => {
     if (existingShop) {
       deleteUploadedFiles(req.files);
       return res.status(400).json({
-        status: 'error',
-        message: 'لديك محل بالفعل، لا يمكنك إنشاء محل آخر',
+        status: "error",
+        message: "لديك محل بالفعل، لا يمكنك إنشاء محل آخر",
       });
     }
 
@@ -110,26 +113,31 @@ export const createShop = async (req, res) => {
       locationData = JSON.parse(req.body.location);
     } catch (error) {
       deleteUploadedFiles(req.files);
-      return res.status(400).json({ status: "error", message: "الموقع غير صالح" });
+      return res
+        .status(400)
+        .json({ status: "error", message: "الموقع غير صالح" });
     }
 
     const shopData = {
       ...req.body,
       owner: req.user._id,
       logoUrl: logo[0].filename,
-      images: images ? images.map(file => file.filename) : [],
+      images: images ? images.map((file) => file.filename) : [],
       commercialRecord: commercialRecord[0].filename,
       location: locationData,
+      requestStatus: "pending", 
+      isApproved: false, 
     };
 
     const newShop = await Shop.create(shopData);
 
     res.status(201).json({
       status: "success",
+      message: "Shop created successfully. Please wait for admin approval before requesting activation.",
       data: newShop,
     });
   } catch (error) {
-    console.error(`❌ Error creating shop: ${error}`);
+    console.error(` Error creating shop: ${error}`);
     deleteUploadedFiles(req.files);
     res.status(500).json({
       status: "error",
@@ -138,14 +146,13 @@ export const createShop = async (req, res) => {
   }
 };
 
-
 export const getAllShops = catchAsync(async (req, res) => {
   // 1) Parse query parameters
   const { location, rating, specialties, sortBy } = req.query;
 
   // 2) Initialize base query conditions
   let filter = {};
-  let sortOption = '-createdAt'; // Default sort by newest
+  let sortOption = "-createdAt"; // Default sort by newest
 
   // 3) Apply role-based filtering
   if (req.user.role === "seller") {
@@ -154,9 +161,9 @@ export const getAllShops = catchAsync(async (req, res) => {
     // Location filter (search in city, area, or address)
     if (location) {
       filter.$or = [
-        { city: new RegExp(location, 'i') },
-        { area: new RegExp(location, 'i') },
-        { address: new RegExp(location, 'i') }
+        { city: new RegExp(location, "i") },
+        { area: new RegExp(location, "i") },
+        { address: new RegExp(location, "i") },
       ];
     }
 
@@ -169,14 +176,14 @@ export const getAllShops = catchAsync(async (req, res) => {
     if (specialties) {
       const specialtiesArray = Array.isArray(specialties)
         ? specialties
-        : specialties.split(',');
+        : specialties.split(",");
 
       // Create an array of regex conditions for each specialty
-      const regexConditions = specialtiesArray.map(specialty => ({
+      const regexConditions = specialtiesArray.map((specialty) => ({
         specialties: {
           $regex: specialty.trim(),
-          $options: 'i' // case insensitive
-        }
+          $options: "i", // case insensitive
+        },
       }));
 
       // Use $or to match any of the specialties
@@ -186,19 +193,18 @@ export const getAllShops = catchAsync(async (req, res) => {
     if (sortBy) {
       sortOption = sortBy;
     }
-  }
-  else if (req.user.role === "admin") {
-    // Admins can see all shops without filters
-  }
-  else {
-    // Regular users only see approved shops
-    filter.isApproved = true;
+  } else if (req.user.role === "admin") {
+    // Admins can see all shops with all statuses
+    // No additional filters - they see everything
+  } else {
+    // Regular users only see active shops (approved and paid)
+    filter.status = "active";
 
     // Optional: Apply public filters for regular users
     if (location) {
       filter.$or = [
-        { city: new RegExp(location, 'i') },
-        { area: new RegExp(location, 'i') }
+        { city: new RegExp(location, "i") },
+        { area: new RegExp(location, "i") },
       ];
     }
 
@@ -206,14 +212,14 @@ export const getAllShops = catchAsync(async (req, res) => {
     if (specialties) {
       const specialtiesArray = Array.isArray(specialties)
         ? specialties
-        : specialties.split(',');
+        : specialties.split(",");
 
       // Create an array of regex conditions for each specialty
-      const regexConditions = specialtiesArray.map(specialty => ({
+      const regexConditions = specialtiesArray.map((specialty) => ({
         specialties: {
           $regex: specialty.trim(),
-          $options: 'i' // case insensitive
-        }
+          $options: "i", // case insensitive
+        },
       }));
 
       // Use $or to match any of the specialties
@@ -232,17 +238,23 @@ export const getAllShops = catchAsync(async (req, res) => {
 
     return {
       ...shopObj,
-      address: shopObj.address ||
-        `${shopObj.area ? shopObj.area + ', ' : ''}${shopObj.city || 'القاهرة'}, مصر`,
+      address:
+        shopObj.address ||
+        `${shopObj.area ? shopObj.area + ", " : ""}${
+          shopObj.city || "القاهرة"
+        }, مصر`,
       phone: shopObj.phone || shopObj.whatsapp || "01000000000",
-      specialties: shopObj.specialties?.length ? shopObj.specialties : ["مجوهرات", "ذهب"],
+      specialties: shopObj.specialties?.length
+        ? shopObj.specialties
+        : ["مجوهرات", "ذهب"],
       workingHours: shopObj.workingHours || "9:00 ص - 9:00 م",
-      rating: shopObj.rating || shopObj.averageRating || 4.5,
-      reviewCount: shopObj.reviewCount || 10,
+      rating: shopObj.averageRating || shopObj.rating || 0,
+      averageRating: shopObj.averageRating || shopObj.rating || 0,
+      reviewCount: shopObj.reviewCount || 0,
       description: shopObj.description || "متجر مجوهرات وذهب عالي الجودة",
       // Calculate subscription status for frontend
-      isPremium: ['Premium', 'Gold'].includes(shopObj.subscriptionPlan),
-      isVerified: shopObj.isApproved && shopObj.reviewCount > 5
+      isPremium: ["Premium", "Gold"].includes(shopObj.subscriptionPlan),
+      isVerified: shopObj.isApproved && shopObj.reviewCount > 5,
     };
   });
 
@@ -250,7 +262,7 @@ export const getAllShops = catchAsync(async (req, res) => {
   res.status(200).json({
     status: "success",
     results: shopsWithDefaults.length,
-    data: shopsWithDefaults
+    data: shopsWithDefaults,
   });
 });
 
@@ -289,11 +301,11 @@ export const updateShop = catchAsync(async (req, res) => {
   let updateData = { ...req.body };
 
   // Handle location parsing
-  if (req.body.location && typeof req.body.location === 'string') {
+  if (req.body.location && typeof req.body.location === "string") {
     try {
       updateData.location = JSON.parse(req.body.location);
     } catch (error) {
-      console.error('Error parsing location data:', error);
+      console.error("Error parsing location data:", error);
     }
   }
 
@@ -305,7 +317,7 @@ export const updateShop = catchAsync(async (req, res) => {
   }
 
   if (images) {
-    updateData.images = images.map(file => file.filename);
+    updateData.images = images.map((file) => file.filename);
   }
 
   if (commercialRecord) {
@@ -330,14 +342,12 @@ export const updateShop = catchAsync(async (req, res) => {
   });
 });
 
-
-// Public endpoint to get approved shops without authentication
+// Public endpoint to get active shops without authentication
 export const getPublicShops = catchAsync(async (req, res) => {
-  // Only return approved shops for public viewing
-  const shops = await Shop.find({ isApproved: true }).populate(
-    "owner",
-    "name email"
-  );
+  // Only return active shops for public viewing (approved and paid)
+  const shops = await Shop.find({
+    status: "active", 
+  }).populate("owner", "name email");
 
   // Add default values for missing fields
   const shopsWithDefaults = shops.map((shop) => {
@@ -366,21 +376,148 @@ export const getPublicShops = catchAsync(async (req, res) => {
 export const getPublicShop = catchAsync(async (req, res) => {
   const { id } = req.params;
 
-  // Only return the shop if it's approved
+  // Only return the shop if it's approved and paid
   const shop = await Shop.findOne({
     _id: id,
     isApproved: true,
+    isPaid: true,
   }).populate("owner", "name email");
 
   if (!shop) {
     return res.status(404).json({
       status: "fail",
-      message: "Shop not found or not approved",
+      message: "Shop not found, not approved, or payment not completed",
     });
   }
 
   res.status(200).json({
     status: "success",
     data: shop,
+  });
+});
+
+// Generate QR Code for a shop
+export const generateShopQRCode = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  // Find the shop and verify ownership
+  const shop = await Shop.findById(id);
+
+  if (!shop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+
+  // Check if user owns this shop (for shop owners) or is admin
+  if (req.user.role !== "admin" && shop.owner.toString() !== req.user._id.toString()) {
+    return res.status(403).json({
+      status: "fail",
+      message: "You don't have permission to generate QR code for this shop",
+    });
+  }
+
+  try {
+    // Create the shop URL that the QR code will point to
+    const frontendBaseUrl = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+    const shopUrl = `${frontendBaseUrl}/shops/${shop._id}`;
+
+    // Generate QR code as base64 data URL
+    const qrCodeDataUrl = await QRCode.toDataURL(shopUrl, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      quality: 0.92,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      },
+      width: 256
+    });
+
+    // Update shop with QR code data
+    shop.qrCode = qrCodeDataUrl;
+    shop.qrCodeUrl = shopUrl;
+    await shop.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "QR Code generated successfully",
+      data: {
+        qrCode: qrCodeDataUrl,
+        qrCodeUrl: shopUrl,
+        shopId: shop._id,
+        shopName: shop.name
+      },
+    });
+  } catch (error) {
+    console.error("Error generating QR code:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to generate QR code",
+    });
+  }
+});
+
+// Get QR Code for a shop
+export const getShopQRCode = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  const shop = await Shop.findById(id).select('qrCode qrCodeUrl name owner');
+
+  if (!shop) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Shop not found",
+    });
+  }
+
+  // Check if user owns this shop (for shop owners) or is admin
+  if (req.user.role !== "admin" && shop.owner.toString() !== req.user._id.toString()) {
+    return res.status(403).json({
+      status: "fail",
+      message: "You don't have permission to access QR code for this shop",
+    });
+  }
+
+  // If QR code doesn't exist, generate it
+  if (!shop.qrCode) {
+    try {
+      const frontendBaseUrl = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+      const shopUrl = `${frontendBaseUrl}/shops/${shop._id}`;
+
+      const qrCodeDataUrl = await QRCode.toDataURL(shopUrl, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        width: 256
+      });
+
+      shop.qrCode = qrCodeDataUrl;
+      shop.qrCodeUrl = shopUrl;
+      await shop.save();
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to generate QR code",
+      });
+    }
+  }
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      qrCode: shop.qrCode,
+      qrCodeUrl: shop.qrCodeUrl,
+      shopId: shop._id,
+      shopName: shop.name
+    },
   });
 });

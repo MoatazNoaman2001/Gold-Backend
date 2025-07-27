@@ -68,8 +68,8 @@
       } else {
         let typeText = typeQuery.length > 0 ? typeQuery[0] : "products";
         return isAbove
-          ? `Sorry, there are no ${typeText} above that price right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`
-          : `Sorry, there are no ${typeText} in that exact range right now 😔. Please check back soon or try a different query! New items are added regularly 💛.`;
+          ? `Sorry, there are no ${typeText} above that price right now . Please check back soon or try a different query! New items are added regularly 💛.`
+          : `Sorry, there are no ${typeText} in that exact range right now . Please check back soon or try a different query! New items are added regularly 💛.`;
       }
     }
 

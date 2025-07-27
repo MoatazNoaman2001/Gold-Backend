@@ -291,7 +291,8 @@ const updateShopAverageRating = async (shopId) => {
 
     await Shop.findByIdAndUpdate(shopId, {
       averageRating: average,
-      totalRatings: validRatings.length,
+      rating: average, // Keep both for compatibility
+      reviewCount: validRatings.length,
     });
 
     return average;
