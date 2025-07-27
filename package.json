@@ -3,7 +3,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed:products": "node scripts/seedProducts.js"
+    "seed:products": "node scripts/seedProducts.js",
+    "seed:all": "node scripts/seedProductsAndShops.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
