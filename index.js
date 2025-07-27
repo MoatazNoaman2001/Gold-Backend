@@ -9,6 +9,7 @@ import rateRoutes from "./routes/rateRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import chatbotRoutes from "./routes/chatbotRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import bcrypt from 'bcrypt';
 
 // ============================================================================
 // NEW RESERVATION SYSTEM IMPORTS
@@ -29,7 +30,6 @@ import oauth20 from "passport-google-oauth20";
 import User from "./models/userModel.js";
 import { globalErrorHandler } from "./controllers/errorController.js";
 import { handleMongooseErrors } from "./utils/wrapperFunction.js";
-import { initializeChatSocket } from "./sockets/socketService.js";
 import http from "http";
 import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -38,6 +38,8 @@ import fss from "fs";
 import calculatePriceRoutes from "./routes/goldPriceRoutes.js";
 import cron from "node-cron";
 import { refreshProductPrices } from "./controllers/goldPriceController.js";
+import mediaRoutes from './routes/mediaRoute.js';
+import { initializeEnhancedChatSocket } from "./sockets/enhancedSocketServer.js";
 
 // Create upload directories if they don't exist
 const createUploadDirs = async () => {
@@ -342,6 +344,7 @@ app.use("/dashboard", dashboardRoutes);
 app.use("/chatbot", chatbotRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/price", calculatePriceRoutes);
+app.use('/api', mediaRoutes);
 
 // Rating routes
 app.use("/", ratingRoutes);
@@ -386,9 +389,7 @@ app.use(handleMongooseErrors);
 // SERVER SETUP WITH RESERVATION SYSTEM
 // ============================================================================
 const server = http.createServer(app);
-
-// Initialize chat socket (your existing)
-initializeChatSocket(server);
+initializeEnhancedChatSocket(server);
 
 // ============================================================================
 // DATABASE CONNECTION WITH RESERVATION SYSTEM SETUP
@@ -400,6 +401,21 @@ mongoose
 
     // Setup reservation system after DB connection
     await setupReservationSystem();
+    
+    async function updatePassword() {
+      try {
+        // Update the password
+        await User.updateOne({ email: "moataz.noaman12@gmail.com" }, {
+          password: await bcrypt.hash('QTJKLas4321', 12)
+        });
+      } catch (error) {
+        console.error('Error updating or comparing password:', error);
+      }
+    }
+    
+    updatePassword();
+    
+
 
     console.log("🚀 Reservation System fully initialized");
   })

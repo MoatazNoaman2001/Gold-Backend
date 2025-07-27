@@ -39,7 +39,7 @@ export class DIContainer {
 export const setupDIContainer = () => {
   const container = new DIContainer();
   container.register('reservationRepository', () => new MongoReservationRepository(ReservationModel));
-  container.register('paymentService', () => new StripePaymentService(process.env.STRIPE_SECRET));
+  container.register('paymentService', () => new StripePaymentService(process.env.STRIPE_SCRETE));
   container.register('eventPublisher', () => new EventPublisher());
   container.register('productRepository', () => productRepository);
   container.register('notificationService', () => notificationService);

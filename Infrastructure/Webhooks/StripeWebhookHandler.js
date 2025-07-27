@@ -6,13 +6,13 @@ import User from '../../models/userModel.js';
 
 export class StripeWebhookHandler {
   constructor() {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET);
+    this.stripe = new Stripe(process.env.STRIPE_SCRETE);
     this.container = setupDIContainer();
     this.reservationRepository = this.container.resolve('reservationRepository');
     this.eventPublisher = this.container.resolve('eventPublisher');
   }
 
-  handleWebhook = async (req, res) => {
+  handleWebhook = async (req, res) => {x
     const sig = req.headers['stripe-signature'];
     let event;
 
