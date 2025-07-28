@@ -12,7 +12,7 @@ import { json } from 'express';
 
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const stripe = new Stripe(process.env.STRIPE_SCRETE);
+const stripe = new Stripe(process.env.STRIPE_SCRETE || process.env.STRIPE_SECRET);
 
 const generateTokens = (user) => {
   const accessToken = jwt.sign(

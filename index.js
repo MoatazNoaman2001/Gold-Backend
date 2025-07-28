@@ -39,7 +39,7 @@ import calculatePriceRoutes from "./routes/goldPriceRoutes.js";
 import cron from "node-cron";
 import { refreshProductPrices } from "./controllers/goldPriceController.js";
 import mediaRoutes from './routes/mediaRoute.js';
-import { initializeEnhancedChatSocket } from "./sockets/enhancedSocketServer.js";
+import { initializeChatSocket } from "./sockets/socketService.js";
 
 // Create upload directories if they don't exist
 const createUploadDirs = async () => {
@@ -389,7 +389,8 @@ app.use(handleMongooseErrors);
 // SERVER SETUP WITH RESERVATION SYSTEM
 // ============================================================================
 const server = http.createServer(app);
-initializeEnhancedChatSocket(server);
+// initializeEnhancedChatSocket(server);
+initializeChatSocket(server);
 
 // ============================================================================
 // DATABASE CONNECTION WITH RESERVATION SYSTEM SETUP

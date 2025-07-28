@@ -6,7 +6,7 @@ import User from '../../models/userModel.js';
 
 export class StripeWebhookHandler {
   constructor() {
-    this.stripe = new Stripe(process.env.STRIPE_SCRETE);
+    this.stripe = new Stripe(process.env.STRIPE_SCRETE || process.env.STRIPE_SECRET);
     this.container = setupDIContainer();
     this.reservationRepository = this.container.resolve('reservationRepository');
     this.eventPublisher = this.container.resolve('eventPublisher');
