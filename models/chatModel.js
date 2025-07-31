@@ -74,11 +74,11 @@ const messageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true,
-    maxlength: 1000 // Limit message length
+    maxlength: 1000
   },
   messageType: {
     type: String,
-    enum: ['text', 'image', 'file', 'system'],
+    enum: ['text', 'image', 'file', 'system' , 'media'],
     default: 'text'
   },
   product: {

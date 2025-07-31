@@ -207,4 +207,28 @@ router.post('/upload', authenticateUser, upload.single('media'), async (req, res
   }
 });
 
+
+router.get('/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    
+    // Clean filename (security)
+    const cleanFilename = path.basename(filename);
+    const filePath = path.join(MEDIA_CONFIG.UPLOAD_DIR, cleanFilename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('File not found');
+    }
+    
+    // Send file
+    res.sendFile(path.resolve(filePath));
+    
+  } catch (error) {
+    console.error('Serve file error:', error);
+    res.status(500).send('Server error');
+  }
+});
+
+
 export default router;

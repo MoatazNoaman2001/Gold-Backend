@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import crypto from 'crypto';
 import { fileTypeFromBuffer } from 'file-type';
 
 // Media configuration
@@ -13,6 +14,7 @@ const MEDIA_CONFIG = {
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm'],
   ALLOWED_AUDIO_TYPES: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/webm'],
+  UPLOAD_DIR: process.env.MEDIA_UPLOAD_DIR || './uploads',
   MAX_AUDIO_DURATION: 300, // 5 minutes
   MAX_VIDEO_DURATION: 600, // 10 minutes
   MAX_IMAGE_WIDTH: 4096,
@@ -28,73 +30,104 @@ const MEDIA_CONFIG = {
  * @param {string} fileName - Original filename
  * @returns {Object} Validation result
  */
-export async function validateMediaFile(buffer, mimeType, fileName) {
-  try {
-    // Check file size
-    if (buffer.length > MEDIA_CONFIG.MAX_FILE_SIZE) {
-      return {
-        isValid: false,
-        error: `File size exceeds maximum limit of ${MEDIA_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`
-      };
-    }
+// export async function validateMediaFile(buffer, mimeType, fileName) {
+//   try {
+//     // Check file size
+//     if (buffer.length > MEDIA_CONFIG.MAX_FILE_SIZE) {
+//       return {
+//         isValid: false,
+//         error: `File size exceeds maximum limit of ${MEDIA_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`
+//       };
+//     }
 
-    // Detect actual file type from buffer
-    const detectedType = await fileTypeFromBuffer(buffer);
-    if (!detectedType) {
-      return {
-        isValid: false,
-        error: 'Unable to determine file type'
-      };
-    }
+//     // Detect actual file type from buffer
+//     const detectedType = await fileTypeFromBuffer(buffer);
+//     if (!detectedType) {
+//       return {
+//         isValid: false,
+//         error: 'Unable to determine file type'
+//       };
+//     }
 
-    // Verify MIME type matches detected type
-    if (detectedType.mime !== mimeType) {
-      return {
-        isValid: false,
-        error: `MIME type mismatch. Expected: ${mimeType}, Detected: ${detectedType.mime}`
-      };
-    }
+//     // Verify MIME type matches detected type
+//     if (detectedType.mime !== mimeType) {
+//       return {
+//         isValid: false,
+//         error: `MIME type mismatch. Expected: ${mimeType}, Detected: ${detectedType.mime}`
+//       };
+//     }
 
-    // Determine media type and validate
-    let mediaType, resourceType;
-    if (MEDIA_CONFIG.ALLOWED_IMAGE_TYPES.includes(mimeType)) {
-      mediaType = 'image';
-      resourceType = 'image';
-    } else if (MEDIA_CONFIG.ALLOWED_VIDEO_TYPES.includes(mimeType)) {
-      mediaType = 'video';
-      resourceType = 'video';
-    } else if (MEDIA_CONFIG.ALLOWED_AUDIO_TYPES.includes(mimeType)) {
-      mediaType = 'audio';
-      resourceType = 'video'; // Cloudinary treats audio as video resource
-    } else {
-      return {
-        isValid: false,
-        error: `Unsupported file type: ${mimeType}`
-      };
-    }
+//     // Determine media type and validate
+//     let mediaType, resourceType;
+//     if (MEDIA_CONFIG.ALLOWED_IMAGE_TYPES.includes(mimeType)) {
+//       mediaType = 'image';
+//       resourceType = 'image';
+//     } else if (MEDIA_CONFIG.ALLOWED_VIDEO_TYPES.includes(mimeType)) {
+//       mediaType = 'video';
+//       resourceType = 'video';
+//     } else if (MEDIA_CONFIG.ALLOWED_AUDIO_TYPES.includes(mimeType)) {
+//       mediaType = 'audio';
+//       resourceType = 'video'; // Cloudinary treats audio as video resource
+//     } else {
+//       return {
+//         isValid: false,
+//         error: `Unsupported file type: ${mimeType}`
+//       };
+//     }
 
-    // Additional validation based on media type
-    const additionalValidation = await validateSpecificMediaType(buffer, mediaType, mimeType);
-    if (!additionalValidation.isValid) {
-      return additionalValidation;
-    }
+//     // Additional validation based on media type
+//     const additionalValidation = await validateSpecificMediaType(buffer, mediaType, mimeType);
+//     if (!additionalValidation.isValid) {
+//       return additionalValidation;
+//     }
 
-    return {
-      isValid: true,
-      mediaType,
-      resourceType,
-      dimensions: additionalValidation.dimensions,
-      duration: additionalValidation.duration,
-      fileName: sanitizeFileName(fileName)
-    };
+//     return {
+//       isValid: true,
+//       mediaType,
+//       resourceType,
+//       dimensions: additionalValidation.dimensions,
+//       duration: additionalValidation.duration,
+//       fileName: sanitizeFileName(fileName)
+//     };
 
-  } catch (error) {
-    console.error('Error validating media file:', error);
+//   } catch (error) {
+//     console.error('Error validating media file:', error);
+//     return {
+//       isValid: false,
+//       error: 'File validation failed'
+//     };
+//   }
+// }
+
+export function validateMediaFile(buffer, mimeType, fileName) {
+  // Check file size
+  if (buffer.length > MEDIA_CONFIG.MAX_FILE_SIZE) {
     return {
       isValid: false,
-      error: 'File validation failed'
+      error: `File too large. Max size: ${MEDIA_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`
     };
   }
+
+  // Check file type
+  if (!MEDIA_CONFIG.ALLOWED_IMAGE_TYPES.includes(mimeType)) {
+    return {
+      isValid: false,
+      error: `Unsupported file type: ${mimeType}`
+    };
+  }
+
+  // Determine media type
+  let mediaType = 'file';
+  if (mimeType.startsWith('image/')) {
+    mediaType = 'image';
+  } else if (mimeType.startsWith('video/')) {
+    mediaType = 'video';
+  }
+
+  return {
+    isValid: true,
+    mediaType
+  };
 }
 
 /**
@@ -441,4 +474,47 @@ export function getMediaDisplayInfo(mediaData) {
   }
   
   return displayInfo;
+}
+
+export async function saveMediaFile(buffer, fileName, mimeType) {
+  try {
+    // Generate unique filename
+    const ext = path.extname(fileName);
+    const timestamp = Date.now();
+    const hash = crypto.randomBytes(6).toString('hex');
+    const uniqueFileName = `${timestamp}_${hash}${ext}`;
+    
+    // Save file
+    const filePath = path.join(MEDIA_CONFIG.UPLOAD_DIR, uniqueFileName);
+    await fs.writeFile(filePath, buffer);
+    
+    // Generate URL
+    const url = `${MEDIA_CONFIG.BASE_URL}/uploads/${uniqueFileName}`;
+    
+    return {
+      url,
+      filePath,
+      fileName: uniqueFileName,
+      originalName: fileName,
+      size: buffer.length,
+      mimeType
+    };
+
+  } catch (error) {
+    console.error('Save file error:', error);
+    throw new Error('Failed to save file');
+  }
+}
+
+/**
+ * Delete file
+ */
+export async function deleteMediaFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) {
+      await fs.unlink(filePath);
+    }
+  } catch (error) {
+    console.error('Delete file error:', error);
+  }
 }

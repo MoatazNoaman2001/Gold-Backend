@@ -13,6 +13,7 @@ import { validateMediaFile, generateThumbnail } from "../utils/mediaUtils.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { saveMediaFile } from "../utils/mediaUtils.js";
 
 let io;
 const rateLimiter = new RateLimiter();
@@ -165,221 +166,197 @@ export const initializeChatSocket = (server) => {
     socket.on("uploadMedia", async (data, callback) => {
       try {
         const { fileBuffer, fileName, mimeType, conversationId } = data;
-
+    
+        
         // Rate limiting
         if (!checkRateLimit(user._id.toString(), 'uploadMedia')) {
           return callback({ 
             status: "error", 
-            message: "Rate limit exceeded. Please wait before uploading another file." 
+            message: "Too many uploads. Please wait." 
           });
         }
-
-        // Input validation
+    
+        // Basic validation
         if (!fileBuffer || !fileName || !mimeType || !conversationId) {
           return callback({ 
             status: "error", 
-            message: "File data, name, type, and conversation ID are required" 
+            message: "Missing required data" 
           });
         }
-
-        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
-          return callback({ status: "error", message: "Invalid conversation ID format" });
-        }
-
-        // Check conversation authorization
+    
+        // Check conversation exists and user has access
         const conversation = await Conversation.findById(conversationId);
         if (!conversation || !conversation.participants.some(p => p._id.equals(user._id))) {
           return callback({ 
             status: "error", 
-            message: "Not authorized to upload media to this conversation" 
+            message: "Access denied" 
           });
         }
-
-        // Validate file
+    
+        
+        // Convert array back to buffer
         const buffer = Buffer.from(fileBuffer);
-        const validationResult = await validateMediaFile(buffer, mimeType, fileName);
-        if (!validationResult.isValid) {
-          return callback({ status: "error", message: validationResult.error });
+        
+        // Validate file
+        const validation = validateMediaFile(buffer, mimeType, fileName);
+        
+        if (!validation.isValid) {
+          return callback({ status: "error", message: validation.error });
         }
 
-        // Generate thumbnail for videos
-        let thumbnailUrl = null;
-        if (validationResult.mediaType === 'video') {
-          try {
-            const thumbnailResult = await generateThumbnail(uploadResult.secure_url);
-            thumbnailUrl = thumbnailResult.secure_url;
-          } catch (thumbnailErr) {
-            console.warn('Failed to generate video thumbnail:', thumbnailErr);
-          }
-        }
-
+        // Save file
+        const savedFile = await saveMediaFile(buffer, fileName, mimeType);
+    
         const mediaData = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
-          fileName: fileName,
+          url: savedFile.url,
+          filePath: savedFile.filePath,
+          fileName: savedFile.fileName,
+          originalName: savedFile.originalName,
           mimeType: mimeType,
-          size: buffer.length,
-          mediaType: validationResult.mediaType,
-          thumbnailUrl: thumbnailUrl,
-          duration: validationResult.duration,
-          dimensions: validationResult.dimensions
+          size: savedFile.size,
+          mediaType: validation.mediaType
         };
-
+    
         callback({ status: "success", media: mediaData });
-
+    
       } catch (err) {
-        console.error('Error uploading media:', err);
-        callback({ status: "error", message: "Failed to upload media file" });
+        console.error('Upload error:', err);
+        callback({ status: "error", message: "Upload failed" });
       }
     });
-
-    // ENHANCED: Send media message
+    
+    // Simple send media message
     socket.on("sendMediaMessage", async (data, callback) => {
       try {
         const { conversationId, mediaData, caption, productId } = data;
-
+    
         // Rate limiting
         if (!checkRateLimit(user._id.toString(), 'sendMediaMessage')) {
           return callback({ 
             status: "error", 
-            message: "Rate limit exceeded. Please wait before sending another media message." 
+            message: "Too many messages. Please wait." 
           });
         }
-
-        // Input validation
+    
+        // Basic validation
         if (!conversationId || !mediaData) {
           return callback({ 
             status: "error", 
-            message: "Conversation ID and media data are required" 
+            message: "Missing data" 
           });
         }
-
-        if (!SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(conversationId)) {
-          return callback({ status: "error", message: "Invalid conversation ID format" });
-        }
-
-        // Validate media data structure
-        const requiredFields = ['url', 'publicId', 'fileName', 'mimeType', 'size', 'mediaType'];
-        const missingFields = requiredFields.filter(field => !mediaData[field]);
-        if (missingFields.length > 0) {
-          return callback({ 
-            status: "error", 
-            message: `Missing media data fields: ${missingFields.join(', ')}` 
-          });
-        }
-
+    
         // Find conversation
         const conversation = await Conversation.findById(conversationId);
         if (!conversation) {
           return callback({ status: "error", message: "Conversation not found" });
         }
         
-        // Check authorization
+        // Check access
         if (!conversation.participants.some(p => p._id.equals(user._id))) {
           return callback({ 
             status: "error", 
-            message: "Not authorized to send message in this conversation" 
+            message: "Access denied" 
           });
         }
-
+    
         // Find receiver
         const receiverId = conversation.participants.find(p => !p._id.equals(user._id));
-
-        // Sanitize caption if provided
-        let sanitizedCaption = null;
+    
+        // Clean caption
+        let cleanCaption = null;
         if (caption && typeof caption === 'string') {
-          sanitizedCaption = sanitizeInput(caption.trim());
+          cleanCaption = caption.trim();
         }
-
+    
         // Create media message
         const message = await Message.create({
           sender: user._id,
           receiver: receiverId,
-          content: sanitizedCaption || `Sent a ${mediaData.mediaType}`,
+          content: cleanCaption || `Sent a ${mediaData.mediaType}`,
           messageType: 'media',
           media: {
             url: mediaData.url,
-            publicId: mediaData.publicId,
+            filePath: mediaData.filePath,
             fileName: mediaData.fileName,
+            originalName: mediaData.originalName,
             mimeType: mediaData.mimeType,
             size: mediaData.size,
             mediaType: mediaData.mediaType,
-            thumbnailUrl: mediaData.thumbnailUrl,
-            duration: mediaData.duration,
-            dimensions: mediaData.dimensions,
             uploadedAt: new Date()
           },
           product: productId || conversation.product,
           conversation: conversationId
         });
-
+    
         // Update conversation
         await Conversation.findByIdAndUpdate(conversationId, {
           lastMessage: message._id,
           updatedAt: new Date()
         });
-
-        // Populate message
-        const populatedMessage = await Message.findById(message._id)
+    
+        // Get full message
+        const fullMessage = await Message.findById(message._id)
           .populate("sender", "name email")
           .populate("receiver", "name email");
-
-        // Broadcast to conversation room
-        io.to(conversationId).emit("newMessage", populatedMessage);
+    
+        // Send to conversation room
+        io.to(conversationId).emit("newMessage", fullMessage);
         
-        // Send to receiver's personal room
+        // Send to receiver
         if (receiverId) {
-          io.to(receiverId.toString()).emit("newMessage", populatedMessage);
+          io.to(receiverId.toString()).emit("newMessage", fullMessage);
         }
-
-        callback({ status: "success", message: populatedMessage });
-        console.log(`Media message sent in conversation ${conversationId}`);
+    
+        callback({ status: "success", message: fullMessage });
         
       } catch (err) {
-        console.error('Error sending media message:', err);
-        callback({ status: "error", message: err.message });
+        console.error('Send media error:', err);
+        callback({ status: "error", message: "Send failed" });
       }
     });
-
-    // NEW: Delete media message
+    
+    // Simple delete media message
     socket.on("deleteMediaMessage", async ({ messageId }, callback) => {
       try {
-        // Input validation
-        if (!messageId || !SOCKET_SECURITY_CONFIG.OBJECT_ID_PATTERN.test(messageId)) {
-          return callback({ status: "error", message: "Invalid message ID" });
+        if (!messageId) {
+          return callback({ status: "error", message: "Missing message ID" });
         }
-
+    
         const message = await Message.findById(messageId);
         if (!message) {
           return callback({ status: "error", message: "Message not found" });
         }
-
-        // Check authorization (only sender can delete)
+    
+        // Check if user owns the message
         if (!message.sender.equals(user._id)) {
           return callback({ 
             status: "error", 
-            message: "Not authorized to delete this message" 
+            message: "Can only delete your own messages" 
           });
         }
-
-   
-
-        // Mark message as deleted (soft delete to maintain conversation history)
+    
+        // Delete file if it exists
+        if (message.messageType === 'media' && message.media?.filePath) {
+          await deleteMediaFile(message.media.filePath);
+        }
+    
+        // Mark as deleted
         message.deleted = true;
         message.deletedAt = new Date();
         await message.save();
-
-        // Broadcast deletion to conversation participants
+    
+        // Notify others
         io.to(message.conversation.toString()).emit("messageDeleted", { 
           messageId,
           deletedBy: user._id 
         });
-
+    
         callback({ status: "success" });
-
+    
       } catch (err) {
-        console.error('Error deleting media message:', err);
-        callback({ status: "error", message: err.message });
+        console.error('Delete error:', err);
+        callback({ status: "error", message: "Delete failed" });
       }
     });
 
@@ -480,6 +457,7 @@ export const initializeChatSocket = (server) => {
     socket.on("getConversations", async (callback) => {
       try {
         const conversations = await Conversation.find({ participants: user._id })
+          .populate('product')
           .populate("participants", "name email")
           .populate("lastMessage")
           .sort({ updatedAt: -1 });
